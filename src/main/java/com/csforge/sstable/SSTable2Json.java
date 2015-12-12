@@ -4,8 +4,11 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.stream.Stream;
 
 import com.csforge.reader.CassandraReader;
+import com.csforge.reader.Partition;
+import com.csforge.sstable.json.JsonTransformer;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -38,7 +41,7 @@ public class SSTable2Json {
 
         Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Enumerate keys only");
 
-        Option cqlCreate = new Option(CREATE_OPTION, false, "file containing \"CREATE TABLE...\" for the sstables schema");
+        Option cqlCreate = new Option(CREATE_OPTION, true, "file containing \"CREATE TABLE...\" for the sstables schema");
 
         options.addOption(partitionKey);
         options.addOption(excludeKey);
@@ -76,7 +79,8 @@ public class SSTable2Json {
             String cql = new String(Files.readAllBytes(Paths.get(create)));
             CassandraReader reader = new CassandraReader(cql);
 
-            reader.readSSTable(sstablePath, null);
+            Stream<Partition> partitions = reader.readSSTable(sstablePath, null);
+            JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
         } catch (IOException e) {
             e.printStackTrace();
         }
