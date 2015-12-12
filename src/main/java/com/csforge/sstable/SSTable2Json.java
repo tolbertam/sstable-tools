@@ -14,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.stream.Stream;
 
 public class SSTable2Json {
@@ -83,10 +82,15 @@ public class SSTable2Json {
             String cql = new String(Files.readAllBytes(Paths.get(create)));
             CassandraReader reader = new CassandraReader(cql);
 
-            Stream<Partition> partitions = keys == null?
-                    reader.readSSTable(sstablePath, excludes) :
-                    reader.readSSTable(sstablePath, Arrays.stream(keys), excludes);
-            JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
+            if(enumerateKeysOnly) {
+                // TODO: json-ify
+                reader.keys(sstablePath).forEach(System.out::println);
+            } else {
+                Stream<Partition> partitions = keys == null ?
+                        reader.readSSTable(sstablePath, excludes) :
+                        reader.readSSTable(sstablePath, Arrays.stream(keys), excludes);
+                JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -1,25 +1,23 @@
 package com.csforge.reader;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.*;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -35,8 +33,11 @@ public class CassandraReader {
         metadata = ((CreateTableStatement) statement.prepare().statement).getCFMetaData();
     }
 
-    public Stream<DecoratedKey> keys(Stream<String> keys) {
-        return null;
+    public Stream<DecoratedKey> keys(String sstablePath) {
+        Descriptor desc = Descriptor.fromFilename(sstablePath);
+        KeyIterator keyIter = new KeyIterator(desc, metadata);
+        Spliterator<DecoratedKey> spliterator = Spliterators.spliteratorUnknownSize(keyIter, Spliterator.IMMUTABLE);
+        return StreamSupport.stream(spliterator, false);
     }
 
     public Stream<Partition> readSSTable(String sstablePath, Stream<String> keys, Set<String> excludes)
