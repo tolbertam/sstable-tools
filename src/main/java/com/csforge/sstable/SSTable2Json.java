@@ -2,6 +2,7 @@ package com.csforge.sstable;
 
 import java.io.PrintWriter;
 
+import org.apache.cassandra.config.Config;
 import org.apache.commons.cli.*;
 
 public class SSTable2Json {
@@ -17,6 +18,8 @@ public class SSTable2Json {
     private static final String ENUMERATE_KEYS_OPTION = "e";
 
     static {
+        Config.setClientMode(true);
+
         Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition Key");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
