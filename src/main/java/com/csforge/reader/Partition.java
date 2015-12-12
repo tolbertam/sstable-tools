@@ -32,7 +32,7 @@ public class Partition {
     }
 
     public boolean isLive() {
-        return markedForDeleteAt() > Long.MIN_VALUE;
+        return parent.partitionLevelDeletion().isLive();
     }
 
     /**
