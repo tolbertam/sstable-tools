@@ -1,5 +1,6 @@
 package com.csforge.reader;
 
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 
 import java.util.stream.Stream;
@@ -21,7 +22,7 @@ public interface Partition {
      */
     public int localDeletionTime();
 
-    public Unfiltered staticRow();
+    public Row staticRow();
 
     public Stream<Unfiltered> rows();
 }
