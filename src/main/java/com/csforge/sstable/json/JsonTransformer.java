@@ -21,8 +21,8 @@ public class JsonTransformer {
 
     public static void toJson(Stream<Partition> partitions, CFMetaData metadata, OutputStream out) throws IOException {
         GsonBuilder gsonBuilder = new GsonBuilder();
-        gsonBuilder.registerTypeAdapter(RowSerializer.class, new RowSerializer(metadata));
-        gsonBuilder.registerTypeAdapter(TombstoneSerializer.class, new TombstoneSerializer(metadata));
+        gsonBuilder.registerTypeAdapter(Row.class, new RowSerializer(metadata));
+        gsonBuilder.registerTypeAdapter(RangeTombstoneMarker.class, new TombstoneSerializer(metadata));
         Gson gson = gsonBuilder.create();
 
         try(JsonWriter writer = new JsonWriter(new OutputStreamWriter(out, "UTF-8"))) {
@@ -54,6 +54,7 @@ public class JsonTransformer {
                     writer.value(key);
 
                     if(!partition.isLive()) {
+                        writer.name("deletion_info");
                         writer.beginObject();
                         writer.name("deletion_time");
                         writer.value(partition.markedForDeleteAt());
@@ -66,13 +67,10 @@ public class JsonTransformer {
                         gson.toJson(partition.staticRow(), Row.class, writer);
                     }
 
-                    partition.rows().forEach(unfiltered -> {
-                        if (unfiltered instanceof Row) {
-                            gson.toJson(unfiltered, Row.class, writer);
-                        } else {
-                            gson.toJson(unfiltered, RangeTombstoneMarker.class, writer);
-                        }
-                    });
+                    writer.name("rows");
+                    writer.beginArray();
+                    partition.rows().forEach(unfiltered -> gson.toJson(unfiltered, Row.class, writer));
+                    writer.endArray();
 
                     writer.endObject();
                 } catch (IOException e) {
