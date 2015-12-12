@@ -44,7 +44,8 @@ public class CassandraReader {
         Descriptor desc = Descriptor.fromFilename(sstablePath);
         SSTableReader sstable = SSTableReader.openNoValidation(desc, metadata);
         IPartitioner partitioner = sstable.getPartitioner();
-        return keys.map(metadata.getKeyValidator()::fromString)
+        return keys.filter(key -> !excludes.contains(key))
+                   .map(metadata.getKeyValidator()::fromString)
                    .map(partitioner::decorateKey)
                    .sorted()
                    .map(key -> sstable.iterator(key, ColumnFilter.all(metadata), false, false))
