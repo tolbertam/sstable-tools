@@ -13,10 +13,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.*;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
+import java.util.*;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -35,13 +32,17 @@ public class CassandraReader {
         return null;
     }
 
-    public Stream<Partition> readSSTable(String sstablePath, Set<DecoratedKey> excludes) throws IOException {
+    public Stream<Partition> readSSTable(String sstablePath, Set<String> excludes) throws IOException {
         Descriptor desc = Descriptor.fromFilename(sstablePath);
         SSTableReader sstable = SSTableReader.openNoValidation(desc, metadata);
 
         Spliterator<UnfilteredRowIterator> spliterator = Spliterators.spliteratorUnknownSize(sstable.getScanner(), Spliterator.IMMUTABLE);
         Stream<UnfilteredRowIterator> stream = StreamSupport.stream(spliterator, false);
-        return stream.filter(i -> excludes != null && excludes.contains(i.partitionKey()))
+        return stream.filter(i -> {
+                        return excludes == null ||
+                               excludes.isEmpty() ||
+                               !excludes.contains(metadata.getKeyValidator().getString(i.partitionKey().getKey()));
+                      })
                      .map(Partition::new);
     }
 

@@ -1,11 +1,5 @@
 package com.csforge.sstable;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.stream.Stream;
-
 import com.csforge.reader.CassandraReader;
 import com.csforge.reader.Partition;
 import com.csforge.sstable.json.JsonTransformer;
@@ -13,6 +7,15 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.commons.cli.*;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class SSTable2Json {
 
@@ -33,7 +36,7 @@ public class SSTable2Json {
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
-        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition Key");
+        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition Keys to be included");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
         Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Excluded Partition Key");
@@ -71,7 +74,8 @@ public class SSTable2Json {
 
         String sstablePath = cmd.getArgs()[0];
         String[] keys = cmd.getOptionValues(PARTITION_KEY_OPTION);
-        String[] excludes = cmd.getOptionValues(EXCLUDE_KEY_OPTION);
+        List<String> excludes = Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null?
+                new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION));
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
         String create = cmd.getOptionValue(CREATE_OPTION);
 
@@ -79,7 +83,7 @@ public class SSTable2Json {
             String cql = new String(Files.readAllBytes(Paths.get(create)));
             CassandraReader reader = new CassandraReader(cql);
 
-            Stream<Partition> partitions = reader.readSSTable(sstablePath, null);
+            Stream<Partition> partitions = reader.readSSTable(sstablePath, new HashSet<String>(excludes));
             JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
         } catch (IOException e) {
             e.printStackTrace();
