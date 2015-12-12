@@ -43,6 +43,7 @@ public class CassandraReader {
         Stream<UnfilteredRowIterator> stream = StreamSupport.stream(spliterator, false);
         return stream.filter(i -> excludes != null && excludes.contains(i.partitionKey()))
                      .map(Partition::new);
+    }
 
     public CFMetaData getMetadata() {
         return metadata;
