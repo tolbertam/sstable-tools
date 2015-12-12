@@ -96,8 +96,8 @@ public final class JsonTransformer {
             json.writeString(key);
 
             if(!partition.isLive()) {
-                indenter.setCompact(true);
                 json.writeFieldName("deletion_info");
+                indenter.setCompact(true);
                 json.writeStartObject();
                 json.writeFieldName("deletion_time");
                 json.writeNumber(partition.markedForDeleteAt());
@@ -130,7 +130,7 @@ public final class JsonTransformer {
     private void serializeRow(Row row) {
         try {
             json.writeStartObject();
-            String rowType = row.isStatic() ? "static_block" : "row";
+            String rowType = row.isStatic() ? "static_block" : (row.deletion().isLive() ? "row" : "row_tombstone");
             json.writeFieldName("type");
             json.writeString(rowType);
 
@@ -150,28 +150,29 @@ public final class JsonTransformer {
                 indenter.setCompact(false);
             }
 
+
             // Only print clustering information for non-static rows.
             if (!row.isStatic()) {
-                json.writeFieldName("clustering");
-                json.writeStartObject();
-                indenter.setCompact(true);
-                Clustering clustering = row.clustering();
-                List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
-                assert clustering.size() == clusteringColumns.size();
-                for (int i = 0; i < clustering.size(); i++) {
-                    ColumnDefinition column = clusteringColumns.get(i);
-                    json.writeFieldName(column.name.toCQLString());
-                    json.writeString(column.cellValueType().getString(clustering.get(i)));
-                }
-                json.writeEndObject();
-                indenter.setCompact(false);
+                serializeClustering(row.clustering());
             }
 
-            json.writeFieldName("cells");
-            json.writeStartArray();
-            row.cells().forEach(this::serializeCell);
-            json.writeEndArray();
-            indenter.setCompact(false);
+            // If this is a deletion, indicate that, otherwise write cells.
+            if(!row.deletion().isLive()) {
+                json.writeFieldName("deletion_info");
+                indenter.setCompact(true);
+                json.writeStartObject();
+                json.writeFieldName("deletion_time");
+                json.writeNumber(row.deletion().time().markedForDeleteAt());
+                json.writeFieldName("tstamp");
+                json.writeNumber(row.deletion().time().localDeletionTime());
+                json.writeEndObject();
+                indenter.setCompact(false);
+            } else {
+                json.writeFieldName("cells");
+                json.writeStartArray();
+                row.cells().forEach(this::serializeCell);
+                json.writeEndArray();
+            }
             json.writeEndObject();
         } catch(IOException e) {
             logger.error("Fatal error parsing row.", e);
@@ -180,64 +181,65 @@ public final class JsonTransformer {
 
     private void serializeTombstone(RangeTombstoneMarker tombstone) {
         try {
-            indenter.setCompact(true);
             json.writeStartObject();
+            json.writeFieldName("type");
 
             if (tombstone instanceof RangeTombstoneBoundMarker) {
-                json.writeFieldName("type");
                 json.writeString("range_tombstone_bound");
                 RangeTombstoneBoundMarker bm = (RangeTombstoneBoundMarker)tombstone;
-                RangeTombstone.Bound bound = bm.clustering();
-                List<ColumnDefinition> clustering = metadata.clusteringColumns();
-                StringBuilder data = new StringBuilder();
-                for (int i = 0; i < clustering.size(); i++) {
-                    if (i != 0) {
-                        data.append(':');
-                    }
-                    ColumnDefinition c = clustering.get(i);
-                    if (bound.size() > i) {
-                        data.append(c.cellValueType().getString(bound.get(i)));
-                    } else {
-                        data.append('*');
-                    }
-                }
-                String value = "?";
-                switch (bound.kind()) {
-                    case EXCL_END_BOUND:
-                        value = data.toString() + ')';
-                        break;
-                    case INCL_START_BOUND:
-                        value = '[' + data.toString();
-                        break;
-                    case EXCL_END_INCL_START_BOUNDARY:
-                        value = '[' + data.toString() + ')';
-                        break;
-                    case STATIC_CLUSTERING:
-                    case CLUSTERING:
-                        value = data.toString();
-                        break;
-                    case INCL_END_EXCL_START_BOUNDARY:
-                        value = '(' + data.toString() + ']';
-                        break;
-                    case INCL_END_BOUND:
-                        value = data.toString() + ']';
-                        break;
-                    case EXCL_START_BOUND:
-                        value = '(' + data.toString();
-                        break;
-                }
-                json.writeFieldName("value");
-                json.writeString(value);
-                json.writeFieldName("deletion_time");
-                json.writeNumber(bm.deletionTime().markedForDeleteAt());
-                json.writeFieldName("tstamp");
-                json.writeNumber(bm.deletionTime().localDeletionTime());
+                serializeBound(bm.clustering(), bm.deletionTime());
+            } else {
+                assert tombstone instanceof RangeTombstoneBoundaryMarker;
+                json.writeString("range_tombstone_boundary");
+                RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)tombstone;
+                serializeBound(bm.openBound(false), bm.openDeletionTime(false));
+                serializeBound(bm.closeBound(false), bm.closeDeletionTime(false));
             }
             json.writeEndObject();
             indenter.setCompact(false);
         } catch(IOException e) {
             logger.error("Failure parsing tombstone.", e);
         }
+    }
+
+    private void serializeBound(RangeTombstone.Bound bound, DeletionTime deletionTime) throws IOException {
+        json.writeFieldName(bound.isStart() ? "start" : "end");
+        json.writeStartObject();
+        json.writeFieldName("type");
+        json.writeString(bound.isInclusive() ? "inclusive" : "exclusive");
+        serializeClustering(bound.clustering());
+        serializeDeletion(deletionTime);
+        json.writeEndObject();
+    }
+
+    private void serializeClustering(ClusteringPrefix clustering) throws IOException {
+        json.writeFieldName("clustering");
+        json.writeStartObject();
+        indenter.setCompact(true);
+        List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
+        for (int i = 0; i < clusteringColumns.size(); i++) {
+            ColumnDefinition column = clusteringColumns.get(i);
+            json.writeFieldName(column.name.toCQLString());
+            if(i >= clustering.size()) {
+                json.writeString("*");
+            } else {
+                json.writeString(column.cellValueType().getString(clustering.get(i)));
+            }
+        }
+        json.writeEndObject();
+        indenter.setCompact(false);
+    }
+
+    private void serializeDeletion(DeletionTime deletion) throws IOException {
+        json.writeFieldName("deletion_info");
+        indenter.setCompact(true);
+        json.writeStartObject();
+        json.writeFieldName("deletion_time");
+        json.writeNumber(deletion.markedForDeleteAt());
+        json.writeFieldName("tstamp");
+        json.writeNumber(deletion.localDeletionTime());
+        json.writeEndObject();
+        indenter.setCompact(false);
     }
 
     private void serializeCell(Cell cell) {
@@ -258,6 +260,8 @@ public final class JsonTransformer {
                     json.writeNumber(cell.ttl());
                     json.writeFieldName("deletion_time");
                     json.writeNumber(cell.localDeletionTime());
+                    json.writeFieldName("expired");
+                    json.writeBoolean(!cell.isLive((int)System.currentTimeMillis() / 1000));
                 }
             }
             json.writeFieldName("tstamp");
