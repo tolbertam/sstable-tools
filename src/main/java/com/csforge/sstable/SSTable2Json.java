@@ -74,8 +74,8 @@ public class SSTable2Json {
 
         String sstablePath = cmd.getArgs()[0];
         String[] keys = cmd.getOptionValues(PARTITION_KEY_OPTION);
-        List<String> excludes = Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null?
-                new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION));
+        HashSet<String> excludes =  new HashSet<String>(Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null?
+                new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
         String create = cmd.getOptionValue(CREATE_OPTION);
 
@@ -83,7 +83,9 @@ public class SSTable2Json {
             String cql = new String(Files.readAllBytes(Paths.get(create)));
             CassandraReader reader = new CassandraReader(cql);
 
-            Stream<Partition> partitions = reader.readSSTable(sstablePath, new HashSet<String>(excludes));
+            Stream<Partition> partitions = keys == null?
+                    reader.readSSTable(sstablePath, excludes) :
+                    reader.readSSTable(sstablePath, Arrays.stream(keys), excludes);
             JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
         } catch (IOException e) {
             e.printStackTrace();
