@@ -1,8 +1,14 @@
 package com.csforge.sstable;
 
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
+import com.csforge.reader.CassandraReader;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.commons.cli.*;
 
 public class SSTable2Json {
@@ -13,12 +19,16 @@ public class SSTable2Json {
 
     private static final String EXCLUDE_KEY_OPTION = "x";
 
-    private static final String CONFIG_YAML_OPTION = "c";
+    private static final String CREATE_OPTION = "c";
 
     private static final String ENUMERATE_KEYS_OPTION = "e";
 
     static {
         Config.setClientMode(true);
+
+        // Partitioner is not set in client mode.
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
         Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition Key");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
@@ -28,13 +38,12 @@ public class SSTable2Json {
 
         Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Enumerate keys only");
 
-        Option conf = new Option(CONFIG_YAML_OPTION, true, "cassandra.yaml configuration file.");
-
+        Option cqlCreate = new Option(CREATE_OPTION, false, "file containing \"CREATE TABLE...\" for the sstables schema");
 
         options.addOption(partitionKey);
         options.addOption(excludeKey);
         options.addOption(enumerateKeys);
-        options.addOption(conf);
+        options.addOption(cqlCreate);
     }
 
     public static void main(String args[]) {
@@ -61,7 +70,16 @@ public class SSTable2Json {
         String[] keys = cmd.getOptionValues(PARTITION_KEY_OPTION);
         String[] excludes = cmd.getOptionValues(EXCLUDE_KEY_OPTION);
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
-        // Unused for now, we could use a child classloader or something but for now needs to be in classpath.
-        String cassandraYaml = cmd.getOptionValue(CONFIG_YAML_OPTION);
+        String create = cmd.getOptionValue(CREATE_OPTION);
+
+        try {
+            String cql = new String(Files.readAllBytes(Paths.get(create)));
+            CassandraReader reader = new CassandraReader(cql);
+
+            reader.readSSTable(sstablePath, null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 }
