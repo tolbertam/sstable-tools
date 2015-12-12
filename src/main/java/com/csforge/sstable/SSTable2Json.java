@@ -4,6 +4,7 @@ import com.csforge.reader.CassandraReader;
 import com.csforge.reader.Partition;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.commons.cli.*;
 
@@ -82,8 +83,8 @@ public class SSTable2Json {
             CassandraReader reader = new CassandraReader(cql);
 
             if(enumerateKeysOnly) {
-                // TODO: json-ify
-                reader.keys(sstablePath).forEach(System.out::println);
+                Stream<DecoratedKey> sstableKeys = reader.keys(sstablePath);
+                JsonTransformer.keysToJson(sstableKeys, reader.getMetadata(), System.out);
             } else {
                 Stream<Partition> partitions = keys == null ?
                         reader.readSSTable(sstablePath, excludes) :

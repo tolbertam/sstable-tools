@@ -15,9 +15,7 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.Indenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.NopIndenter;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +47,26 @@ public final class JsonTransformer {
 
             json.writeStartArray();
             partitions.forEach(transformer::serializePartition);
+            json.writeEndArray();
+        }
+    }
+
+    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, OutputStream out) throws IOException {
+        try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
+            JsonTransformer transformer = new JsonTransformer(json, metadata);
+            DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
+            prettyPrinter.indentObjectsWith(transformer.indenter);
+            prettyPrinter.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
+            json.setPrettyPrinter(prettyPrinter);
+
+            json.writeStartArray();
+            keys.forEach(key -> {
+                try {
+                    json.writeString(metadata.getKeyValidator().getString(key.getKey()));
+                } catch (IOException e) {
+                    logger.error("Fatal error writing key.", e);
+                }
+            });
             json.writeEndArray();
         }
     }
