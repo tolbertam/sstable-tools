@@ -1,5 +1,13 @@
 package com.csforge.sstable;
 
+import com.csforge.reader.CassandraReader;
+import com.csforge.reader.Partition;
+import com.csforge.sstable.json.JsonTransformer;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.commons.cli.*;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -7,12 +15,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-
-import com.csforge.reader.CassandraReader;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.commons.cli.*;
+import java.util.stream.Stream;
 
 public class SSTable2Json {
 
@@ -80,7 +83,8 @@ public class SSTable2Json {
             String cql = new String(Files.readAllBytes(Paths.get(create)));
             CassandraReader reader = new CassandraReader(cql);
 
-            reader.readSSTable(sstablePath, new HashSet<String>(excludes));
+            Stream<Partition> partitions = reader.readSSTable(sstablePath, new HashSet<String>(excludes));
+            JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -46,4 +46,8 @@ public class CassandraReader {
                      .map(Partition::new);
     }
 
+    public CFMetaData getMetadata() {
+        return metadata;
+    }
+
 }
