@@ -178,26 +178,29 @@ public final class JsonTransformer {
             json.writeFieldName("type");
             json.writeString(rowType);
 
+            // Only print clustering information for non-static rows.
+            if (!row.isStatic()) {
+                serializeClustering(row.clustering());
+            }
+
             LivenessInfo liveInfo = row.primaryKeyLivenessInfo();
             if (!liveInfo.isEmpty()) {
+                indenter.setCompact(false);
+                json.writeFieldName("liveness_info");
                 indenter.setCompact(true);
+                json.writeStartObject();
                 json.writeFieldName("tstamp");
                 json.writeNumber(liveInfo.timestamp());
                 if (liveInfo.isExpiring()) {
                     json.writeFieldName("ttl");
                     json.writeNumber(liveInfo.ttl());
-                    json.writeFieldName("ttl_timestamp");
+                    json.writeFieldName("expires_at");
                     json.writeNumber(liveInfo.localExpirationTime());
                     json.writeFieldName("expired");
-                    json.writeBoolean(liveInfo.isLive((int)System.currentTimeMillis() / 1000));
+                    json.writeBoolean(liveInfo.localExpirationTime() < (System.currentTimeMillis() / 1000));
                 }
+                json.writeEndObject();
                 indenter.setCompact(false);
-            }
-
-
-            // Only print clustering information for non-static rows.
-            if (!row.isStatic()) {
-                serializeClustering(row.clustering());
             }
 
             // If this is a deletion, indicate that, otherwise write cells.
@@ -214,7 +217,7 @@ public final class JsonTransformer {
             } else {
                 json.writeFieldName("cells");
                 json.writeStartArray();
-                row.cells().forEach(this::serializeCell);
+                row.cells().forEach(c -> serializeCell(c, liveInfo));
                 json.writeEndArray();
             }
             json.writeEndObject();
@@ -292,7 +295,7 @@ public final class JsonTransformer {
         indenter.setCompact(false);
     }
 
-    private void serializeCell(Cell cell) {
+    private void serializeCell(Cell cell, LivenessInfo liveInfo) {
         try {
             json.writeStartObject();
             indenter.setCompact(true);
@@ -305,17 +308,19 @@ public final class JsonTransformer {
             } else {
                 json.writeFieldName("value");
                 json.writeString(cell.column().cellValueType().getString(cell.value()));
-                if (cell.isExpiring()) {
-                    json.writeFieldName("ttl");
-                    json.writeNumber(cell.ttl());
-                    json.writeFieldName("deletion_time");
-                    json.writeNumber(cell.localDeletionTime());
-                    json.writeFieldName("expired");
-                    json.writeBoolean(!cell.isLive((int)System.currentTimeMillis() / 1000));
-                }
             }
-            json.writeFieldName("tstamp");
-            json.writeNumber(cell.timestamp());
+            if(liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp()) {
+                json.writeFieldName("tstamp");
+                json.writeNumber(cell.timestamp());
+            }
+            if (cell.isExpiring() && (liveInfo.isEmpty() || cell.ttl() != liveInfo.ttl())) {
+                json.writeFieldName("ttl");
+                json.writeNumber(cell.ttl());
+                json.writeFieldName("expires_at");
+                json.writeNumber(cell.localDeletionTime());
+                json.writeFieldName("expired");
+                json.writeBoolean(!cell.isLive((int)(System.currentTimeMillis() / 1000)));
+            }
             json.writeEndObject();
             indenter.setCompact(false);
         } catch(IOException e) {
