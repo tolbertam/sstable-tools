@@ -47,13 +47,24 @@ public class CassandraReaderTest {
         SSTableReader mockReader = Mockito.mock(SSTableReader.class);
         ISSTableScanner rowIter = Mockito.mock(ISSTableScanner.class);
         when(SSTableReader.openNoValidation(desc,  reader.metadata)).thenReturn(mockReader);
-        when(mockReader.getScanner()).thenReturn(rowIter);
-
         DecoratedKey k1 = Murmur3Partitioner.instance.decorateKey(ByteBuffer.wrap("1".getBytes()));
         DecoratedKey k2 = Murmur3Partitioner.instance.decorateKey(ByteBuffer.wrap("2".getBytes()));
-        Iterator<UnfilteredRowIterator> u =  Lists.newArrayList(makePartition(k1), makePartition(k2)).iterator();
-        when(rowIter.hasNext()).thenReturn(u.hasNext());
-        when(rowIter.next()).thenReturn(u.next());
+        Iterator<UnfilteredRowIterator> uri = Lists.newArrayList(makePartition(k1), makePartition(k2)).iterator();
+        ISSTableScanner u =  new ISSTableScanner() {
+            public long getLengthInBytes() { return 0; }
+            public long getCurrentPosition() { return 0; }
+            public String getBackingFiles() { return null; }
+            public boolean isForThrift() { return false; }
+            public CFMetaData metadata() { return null; }
+            public void close() { }
+            public boolean hasNext() {
+                return uri.hasNext();
+            }
+            public UnfilteredRowIterator next() {
+                return uri.next();
+            }
+        };
+        when(mockReader.getScanner()).thenReturn(u);
 
         List<Partition> results = reader.readSSTable("test", null).collect(Collectors.toList());
         Assert.assertEquals(results.get(0).getKey(), k1);
