@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Stream;
 
-import com.csforge.reader.Partition;
+import com.csforge.sstable.reader.Partition;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.util.DefaultIndenter;

@@ -1,7 +1,7 @@
 package com.csforge.sstable;
 
-import com.csforge.reader.CassandraReader;
-import com.csforge.reader.Partition;
+import com.csforge.sstable.reader.CassandraReader;
+import com.csforge.sstable.reader.Partition;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -94,6 +94,6 @@ public class SSTable2Json {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
+        System.out.println();
     }
 }
