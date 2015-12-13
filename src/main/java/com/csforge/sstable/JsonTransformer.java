@@ -3,6 +3,7 @@ package com.csforge.sstable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -16,7 +17,10 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter.NopIndenter;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,7 +66,7 @@ public final class JsonTransformer {
             json.writeStartArray();
             keys.forEach(key -> {
                 try {
-                    json.writeString(metadata.getKeyValidator().getString(key.getKey()));
+                    transformer.serializePartitionKey(key);
                 } catch (IOException e) {
                     logger.error("Fatal error writing key.", e);
                 }
@@ -71,29 +75,57 @@ public final class JsonTransformer {
         }
     }
 
+    private void serializePartitionKey(DecoratedKey key) throws IOException {
+        AbstractType<?> keyValidator = metadata.getKeyValidator();
+        indenter.setCompact(true);
+        json.writeStartArray();
+        if(keyValidator instanceof CompositeType) {
+            CompositeType compositeType = (CompositeType)keyValidator;
+            assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
+            ByteBuffer keyBytes = key.getKey().duplicate();
+            // Skip static data if it exists.
+            if(keyBytes.remaining() >= 2) {
+                int header = ByteBufferUtil.getShortLength(keyBytes, keyBytes.position());
+                if((header & 0xFFFF) == 0xFFFF) {
+                    ByteBufferUtil.readShortLength(keyBytes);
+                }
+            }
+
+            int i = 0;
+            while (keyBytes.remaining() > 0 && i < compositeType.getComponents().size()) {
+                AbstractType<?> colType = compositeType.getComponents().get(i);
+                ColumnDefinition column = metadata.partitionKeyColumns().get(i);
+
+                json.writeStartObject();
+                json.writeFieldName("name");
+                json.writeString(column.name.toString());
+
+                json.writeFieldName("value");
+                ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
+                String colValue = colType.getString(value);
+                json.writeString(colValue);
+                json.writeEndObject();
+
+                byte b = keyBytes.get();
+                if(b != 0) {
+                    break;
+                }
+                ++i;
+            }
+        }
+        json.writeEndArray();
+        indenter.setCompact(false);
+    }
+
     private void serializePartition(Partition partition) {
         String key = metadata.getKeyValidator().getString(partition.getKey().getKey());
         try {
-            /* TODO: Parse the individual key parts.
-            List<AbstractType<?>> keyParts = metadata.getKeyValidator().getComponents();
-            List<ColumnDefinition> partitionColumns = metadata.partitionKeyColumns();
-            assert keyParts.size() == partitionColumns.size();
-            writer.name("partition_key");
-            writer.beginObject();
-            for(int i = 0; i < keyParts.size(); i++) {
-                ColumnDefinition column = partitionColumns.get(i);
-                AbstractType<?> type = keyParts.get(i);
-                writer.name("name");
-                writer.value(column.name.toCQLString());
-                writer.name("value");
-                writer.value(type.getString());
-            }
-            writer.endObject();
-            */
+            json.writeStartObject();
 
+            json.writeFieldName("partition");
             json.writeStartObject();
             json.writeFieldName("key");
-            json.writeString(key);
+            serializePartitionKey(partition.getKey());
 
             if(!partition.isLive()) {
                 json.writeFieldName("deletion_info");
@@ -105,22 +137,25 @@ public final class JsonTransformer {
                 json.writeNumber(partition.localDeletionTime());
                 json.writeEndObject();
                 indenter.setCompact(false);
-            }
-
-            json.writeFieldName("rows");
-            json.writeStartArray();
-            if (!partition.staticRow().isEmpty()) {
-                serializeRow(partition.staticRow());
-            }
-
-            partition.rows().forEach(unfiltered -> {
-                if (unfiltered instanceof Row) {
-                    serializeRow((Row)unfiltered);
-                } else if (unfiltered instanceof RangeTombstoneMarker) {
-                    serializeTombstone((RangeTombstoneMarker)unfiltered);
+                json.writeEndObject();
+            } else {
+                json.writeEndObject();
+                json.writeFieldName("rows");
+                json.writeStartArray();
+                if (!partition.staticRow().isEmpty()) {
+                    serializeRow(partition.staticRow());
                 }
-            });
-            json.writeEndArray();
+
+                partition.rows().forEach(unfiltered -> {
+                    if (unfiltered instanceof Row) {
+                        serializeRow((Row)unfiltered);
+                    } else if (unfiltered instanceof RangeTombstoneMarker) {
+                        serializeTombstone((RangeTombstoneMarker)unfiltered);
+                    }
+                });
+                json.writeEndArray();
+            }
+
             json.writeEndObject();
         } catch (IOException e) {
             logger.error("Fatal error parsing partition: {}", key, e);
@@ -130,7 +165,7 @@ public final class JsonTransformer {
     private void serializeRow(Row row) {
         try {
             json.writeStartObject();
-            String rowType = row.isStatic() ? "static_block" : (row.deletion().isLive() ? "row" : "row_tombstone");
+            String rowType = row.isStatic() ? "static_block" : "row";
             json.writeFieldName("type");
             json.writeString(rowType);
 
@@ -214,19 +249,23 @@ public final class JsonTransformer {
 
     private void serializeClustering(ClusteringPrefix clustering) throws IOException {
         json.writeFieldName("clustering");
-        json.writeStartObject();
+        json.writeStartArray();
         indenter.setCompact(true);
         List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
         for (int i = 0; i < clusteringColumns.size(); i++) {
             ColumnDefinition column = clusteringColumns.get(i);
-            json.writeFieldName(column.name.toCQLString());
+            json.writeStartObject();
+            json.writeFieldName("name");
+            json.writeString(column.name.toCQLString());
+            json.writeFieldName("value");
             if(i >= clustering.size()) {
                 json.writeString("*");
             } else {
                 json.writeString(column.cellValueType().getString(clustering.get(i)));
             }
+            json.writeEndObject();
         }
-        json.writeEndObject();
+        json.writeEndArray();
         indenter.setCompact(false);
     }
 
