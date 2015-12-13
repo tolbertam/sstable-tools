@@ -5,7 +5,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.stream.Stream;
 
-import com.csforge.reader.Partition;
+import com.csforge.sstable.reader.Partition;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonWriter;

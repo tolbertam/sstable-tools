@@ -1,5 +1,6 @@
-package com.csforge.reader;
+package com.csforge.sstable.reader;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -25,6 +26,9 @@ public class CassandraReader {
 
     CFMetaData metadata = null;
 
+    @VisibleForTesting
+    CassandraReader() {}
+
     public CassandraReader(String cql) {
         Schema.instance.setKeyspaceMetadata(KeyspaceMetadata.create("turtle", KeyspaceParams.local(), Tables.none(),
                 Views.none(), Types.none(), Functions.none()));
@@ -33,6 +37,10 @@ public class CassandraReader {
         metadata = ((CreateTableStatement) statement.prepare().statement).getCFMetaData();
     }
 
+    /**
+     * return all the decorated keys within an sstable
+     * @param sstablePath - path to sstable
+     */
     public Stream<DecoratedKey> keys(String sstablePath) {
         Descriptor desc = Descriptor.fromFilename(sstablePath);
         KeyIterator keyIter = new KeyIterator(desc, metadata);

@@ -1,7 +1,7 @@
 package com.csforge.sstable;
 
-import com.csforge.reader.CassandraReader;
-import com.csforge.reader.Partition;
+import com.csforge.sstable.reader.CassandraReader;
+import com.csforge.sstable.reader.Partition;
 import com.csforge.sstable.json.JsonTransformer;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;

@@ -1,4 +1,4 @@
-package com.csforge.reader;
+package com.csforge.sstable.reader;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionColumns;
