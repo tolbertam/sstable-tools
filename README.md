@@ -78,8 +78,8 @@ series of rows with columns:
   {
     "partition" : {
       "key" : [
-        { "name" : "symbol", "value" : "ZZZ0" },
-        { "name" : "year", "value" : "2004" }
+        { "name" : "symbol", "value" : "AAAA" },
+        { "name" : "year", "value" : "2016" }
       ]
     },
     "rows" : [
@@ -87,14 +87,15 @@ series of rows with columns:
         "type" : "row",
         "clustering" : [
           { "name" : "month", "value" : "12" },
-          { "name" : "day", "value" : "31" }
+          { "name" : "day", "value" : "13" }
         ],
+        "liveness_info" : { "tstamp" : 1450034993891342, "ttl" : 10000, "expires_at" : 1450044993, "expired" : false },
         "cells" : [
-          { "name" : "close", "value" : "29.79", "tstamp" : 1449469422019040 },
-          { "name" : "high", "value" : "30.02", "tstamp" : 1449469422019040 },
-          { "name" : "low", "value" : "29.54", "tstamp" : 1449469422019040 },
-          { "name" : "open", "value" : "29.84", "tstamp" : 1449469422019040 },
-          { "name" : "volume", "value" : "375700", "tstamp" : 1449469422019040 }
+          { "name" : "close", "value" : "100.0" },
+          { "name" : "high", "value" : "101.5" },
+          { "name" : "low", "value" : "90.2" },
+          { "name" : "open", "value" : "96.72", "tstamp" : 1450034999438049, "ttl" : 300, "expires_at" : 1450035299, "expired" : true },
+          { "name" : "volume", "value" : "49554" }
         ]
       }
     ]
