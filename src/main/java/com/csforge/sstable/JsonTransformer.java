@@ -80,6 +80,7 @@ public final class JsonTransformer {
         indenter.setCompact(true);
         json.writeStartArray();
         if(keyValidator instanceof CompositeType) {
+            // if a composite type, the partition has multiple keys.
             CompositeType compositeType = (CompositeType)keyValidator;
             assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
             ByteBuffer keyBytes = key.getKey().duplicate();
@@ -112,6 +113,16 @@ public final class JsonTransformer {
                 }
                 ++i;
             }
+        } else {
+            // if not a composite type, assume a single column partition key.
+            assert metadata.partitionKeyColumns().size() == 1;
+            ColumnDefinition column = metadata.partitionKeyColumns().get(0);
+            json.writeStartObject();
+            json.writeFieldName("name");
+            json.writeString(column.name.toString());
+            json.writeFieldName("value");
+            json.writeString(keyValidator.getString(key.getKey()));
+            json.writeEndObject();
         }
         json.writeEndArray();
         indenter.setCompact(false);
@@ -248,25 +259,27 @@ public final class JsonTransformer {
     }
 
     private void serializeClustering(ClusteringPrefix clustering) throws IOException {
-        json.writeFieldName("clustering");
-        json.writeStartArray();
-        indenter.setCompact(true);
-        List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
-        for (int i = 0; i < clusteringColumns.size(); i++) {
-            ColumnDefinition column = clusteringColumns.get(i);
-            json.writeStartObject();
-            json.writeFieldName("name");
-            json.writeString(column.name.toCQLString());
-            json.writeFieldName("value");
-            if(i >= clustering.size()) {
-                json.writeString("*");
-            } else {
-                json.writeString(column.cellValueType().getString(clustering.get(i)));
+        if(clustering.size() > 0) {
+            json.writeFieldName("clustering");
+            json.writeStartArray();
+            indenter.setCompact(true);
+            List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
+            for (int i = 0; i < clusteringColumns.size(); i++) {
+                ColumnDefinition column = clusteringColumns.get(i);
+                json.writeStartObject();
+                json.writeFieldName("name");
+                json.writeString(column.name.toCQLString());
+                json.writeFieldName("value");
+                if (i >= clustering.size()) {
+                    json.writeString("*");
+                } else {
+                    json.writeString(column.cellValueType().getString(clustering.get(i)));
+                }
+                json.writeEndObject();
             }
-            json.writeEndObject();
+            json.writeEndArray();
+            indenter.setCompact(false);
         }
-        json.writeEndArray();
-        indenter.setCompact(false);
     }
 
     private void serializeDeletion(DeletionTime deletion) throws IOException {
