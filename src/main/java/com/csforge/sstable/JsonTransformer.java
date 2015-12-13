@@ -64,68 +64,66 @@ public final class JsonTransformer {
             json.setPrettyPrinter(prettyPrinter);
 
             json.writeStartArray();
-            keys.forEach(key -> {
-                try {
-                    transformer.serializePartitionKey(key);
-                } catch (IOException e) {
-                    logger.error("Fatal error writing key.", e);
-                }
-            });
+            keys.forEach(transformer::serializePartitionKey);
             json.writeEndArray();
         }
     }
 
-    private void serializePartitionKey(DecoratedKey key) throws IOException {
+    private void serializePartitionKey(DecoratedKey key) {
         AbstractType<?> keyValidator = metadata.getKeyValidator();
         indenter.setCompact(true);
-        json.writeStartArray();
-        if(keyValidator instanceof CompositeType) {
-            // if a composite type, the partition has multiple keys.
-            CompositeType compositeType = (CompositeType)keyValidator;
-            assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
-            ByteBuffer keyBytes = key.getKey().duplicate();
-            // Skip static data if it exists.
-            if(keyBytes.remaining() >= 2) {
-                int header = ByteBufferUtil.getShortLength(keyBytes, keyBytes.position());
-                if((header & 0xFFFF) == 0xFFFF) {
-                    ByteBufferUtil.readShortLength(keyBytes);
+        try {
+            json.writeStartArray();
+            if (keyValidator instanceof CompositeType) {
+                // if a composite type, the partition has multiple keys.
+                CompositeType compositeType = (CompositeType)keyValidator;
+                assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
+                ByteBuffer keyBytes = key.getKey().duplicate();
+                // Skip static data if it exists.
+                if (keyBytes.remaining() >= 2) {
+                    int header = ByteBufferUtil.getShortLength(keyBytes, keyBytes.position());
+                    if ((header & 0xFFFF) == 0xFFFF) {
+                        ByteBufferUtil.readShortLength(keyBytes);
+                    }
                 }
-            }
 
-            int i = 0;
-            while (keyBytes.remaining() > 0 && i < compositeType.getComponents().size()) {
-                AbstractType<?> colType = compositeType.getComponents().get(i);
-                ColumnDefinition column = metadata.partitionKeyColumns().get(i);
+                int i = 0;
+                while (keyBytes.remaining() > 0 && i < compositeType.getComponents().size()) {
+                    AbstractType<?> colType = compositeType.getComponents().get(i);
+                    ColumnDefinition column = metadata.partitionKeyColumns().get(i);
 
+                    json.writeStartObject();
+                    json.writeFieldName("name");
+                    json.writeString(column.name.toString());
+
+                    json.writeFieldName("value");
+                    ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
+                    String colValue = colType.getString(value);
+                    json.writeString(colValue);
+                    json.writeEndObject();
+
+                    byte b = keyBytes.get();
+                    if (b != 0) {
+                        break;
+                    }
+                    ++i;
+                }
+            } else {
+                // if not a composite type, assume a single column partition key.
+                assert metadata.partitionKeyColumns().size() == 1;
+                ColumnDefinition column = metadata.partitionKeyColumns().get(0);
                 json.writeStartObject();
                 json.writeFieldName("name");
                 json.writeString(column.name.toString());
-
                 json.writeFieldName("value");
-                ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
-                String colValue = colType.getString(value);
-                json.writeString(colValue);
+                json.writeString(keyValidator.getString(key.getKey()));
                 json.writeEndObject();
-
-                byte b = keyBytes.get();
-                if(b != 0) {
-                    break;
-                }
-                ++i;
             }
-        } else {
-            // if not a composite type, assume a single column partition key.
-            assert metadata.partitionKeyColumns().size() == 1;
-            ColumnDefinition column = metadata.partitionKeyColumns().get(0);
-            json.writeStartObject();
-            json.writeFieldName("name");
-            json.writeString(column.name.toString());
-            json.writeFieldName("value");
-            json.writeString(keyValidator.getString(key.getKey()));
-            json.writeEndObject();
+            json.writeEndArray();
+            indenter.setCompact(false);
+        } catch(IOException e) {
+            logger.error("Failure serializing partition key.", e);
         }
-        json.writeEndArray();
-        indenter.setCompact(false);
     }
 
     private void serializePartition(Partition partition) {
