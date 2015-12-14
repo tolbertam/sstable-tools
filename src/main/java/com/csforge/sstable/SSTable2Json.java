@@ -7,6 +7,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.commons.cli.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -17,6 +19,8 @@ import java.util.HashSet;
 import java.util.stream.Stream;
 
 public class SSTable2Json {
+
+    private static final Logger logger = LoggerFactory.getLogger(SSTable2Json.class);
 
     private static final Options options = new Options();
 
@@ -35,15 +39,16 @@ public class SSTable2Json {
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
-        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition Keys to be included");
+        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Excluded Partition Key");
+        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Partition key to be excluded");
         excludeKey.setArgs(Option.UNLIMITED_VALUES);
 
         Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Enumerate keys only");
 
-        Option cqlCreate = new Option(CREATE_OPTION, true, "file containing \"CREATE TABLE...\" for the sstables schema");
+        Option cqlCreate = new Option(CREATE_OPTION, true, "file containing \"CREATE TABLE...\" for the sstable's schema");
+        cqlCreate.setRequired(true);
 
         options.addOption(partitionKey);
         options.addOption(excludeKey);
@@ -55,16 +60,19 @@ public class SSTable2Json {
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
+            if(args.length == 0) {
+                throw new ParseException("You must supply exactly one sstable.");
+            }
             cmd = parser.parse(options, args);
             if (cmd.getArgs().length != 1) {
-                throw new ParseException("You must supply exactly one sstable." + cmd.getArgs().length);
+                logger.warn("Multiple SSTables provided, only using {}.", cmd.getArgs()[0]);
             }
         } catch (ParseException e) {
             System.err.println("Failure parsing arguments: " + e.getMessage());
             try (PrintWriter errWriter = new PrintWriter(System.err, true)) {
                 HelpFormatter formatter = new HelpFormatter();
-                formatter.printHelp(errWriter, 120, "sstable2json <sstable>",
-                    "Converts on-disk SSTable representation of a table into a JSON formatted document.",
+                formatter.printHelp(errWriter, 120, "toJson <sstable>",
+                    "Converts SSTable into a JSON formatted document.",
                     options, 2, 1, "", true);
             } finally {
                 System.exit(-1);

@@ -11,6 +11,17 @@ in may ways.
 
 * [sstable2json](#sstable2json) - Utility for exporting C\* 3.X SSTables into JSON.
 
+## Building
+
+This project uses [Apache Maven](https://maven.apache.org/) to build a
+self-contained executable jar.  To build the jar simply execute:
+
+```shell
+mvn package
+```
+
+The executable jar will be present in the target directory.
+
 ## sstable2json
 
 sstable2json is a utility in the spirit of the [original sstable2json](https://docs.datastax.com/en/cassandra/1.2/cassandra/tools/toolsSstable2JsonUtilsTOC.html)
@@ -29,8 +40,17 @@ the layout of data is now easier to grasp and thus the output of this tool
 should be much more pleasant to follow.
 
 ### Usage
-TODO: Establish sjk-style usage.  For now you can access this utility via
-`com.csforge.sstable.SSTable2Json`.
+
+```
+java -jar sstable-tools.jar toJson
+
+usage: toJson <sstable> -c <arg> [-e] [-k <arg>] [-x <arg>]
+Converts SSTable into a JSON formatted document.
+  -c <arg> file containing "CREATE TABLE..." for the sstable's schema
+  -e       Enumerate keys only
+  -k <arg> Partition key to be included
+  -x <arg> Partition key to be excluded
+```
 
 ### Examples
 
@@ -78,8 +98,8 @@ series of rows with columns:
   {
     "partition" : {
       "key" : [
-        { "name" : "symbol", "value" : "ZZZ0" },
-        { "name" : "year", "value" : "2004" }
+        { "name" : "symbol", "value" : "AAAA" },
+        { "name" : "year", "value" : "2016" }
       ]
     },
     "rows" : [
@@ -87,14 +107,15 @@ series of rows with columns:
         "type" : "row",
         "clustering" : [
           { "name" : "month", "value" : "12" },
-          { "name" : "day", "value" : "31" }
+          { "name" : "day", "value" : "13" }
         ],
+        "liveness_info" : { "tstamp" : 1450034993891342, "ttl" : 10000, "expires_at" : 1450044993, "expired" : false },
         "cells" : [
-          { "name" : "close", "value" : "29.79", "tstamp" : 1449469422019040 },
-          { "name" : "high", "value" : "30.02", "tstamp" : 1449469422019040 },
-          { "name" : "low", "value" : "29.54", "tstamp" : 1449469422019040 },
-          { "name" : "open", "value" : "29.84", "tstamp" : 1449469422019040 },
-          { "name" : "volume", "value" : "375700", "tstamp" : 1449469422019040 }
+          { "name" : "close", "value" : "100.0" },
+          { "name" : "high", "value" : "101.5" },
+          { "name" : "low", "value" : "90.2" },
+          { "name" : "open", "value" : "96.72", "tstamp" : 1450034999438049, "ttl" : 300, "expires_at" : 1450035299, "expired" : true },
+          { "name" : "volume", "value" : "49554" }
         ]
       }
     ]

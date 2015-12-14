@@ -11,17 +11,23 @@ public class Driver {
     public static void main(String ... args) {
         Logger.getRootLogger().setLevel(Level.OFF);
         ((LoggerContext) LoggerFactory.getILoggerFactory()).stop();
-        if(args.length == 0) {
-            System.err.println("Provide tool to run from ['toJson']");
-            System.exit(1);
+        if (args.length == 0) {
+            printCommands();
+            System.exit(-1);
         }
         switch(args[0]) {
             case "toJson":
                 SSTable2Json.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
             default:
-                System.err.println("Unknown Command");
-                System.exit(1);
+                System.err.println("Unknown command: " + args[0]);
+                printCommands();
+                System.exit(-2);
+                break;
         }
+    }
+    
+    private static void printCommands() {
+        System.err.println("Available commands: toJson");
     }
 }
