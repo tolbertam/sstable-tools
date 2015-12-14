@@ -97,30 +97,49 @@
           </execution>
         </executions>
       </plugin>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>exec-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <configuration>
-              <executable>python</executable>
-              <workingDirectory>src/integration/python</workingDirectory>
-              <arguments>
-                <argument>tests.py</argument>
-              </arguments>
-              <environmentVariables>
-                <PYTHONPATH>../../main/python:$PYTHONPATH</PYTHONPATH>
-                <CASSANDRA_VERSION>${cassandra.version}</CASSANDRA_VERSION>
-              </environmentVariables>
-            </configuration>
-            <id>python-test</id>
-            <phase>integration-test</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>integration-test</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+        <!--
+        when environment can be properly set up, reenable this and remove activeByDefault element
+        <property>
+          <name>!skipTests</name>
+        </property>-->
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.4.0</version>
+            <executions>
+              <execution>
+                <configuration>
+                  <executable>python</executable>
+                  <workingDirectory>src/integration/python</workingDirectory>
+                  <arguments>
+                    <argument>tests.py</argument>
+                  </arguments>
+                  <environmentVariables>
+                    <PYTHONPATH>../../main/python:$PYTHONPATH</PYTHONPATH>
+                    <CASSANDRA_VERSION>${cassandra.version}</CASSANDRA_VERSION>
+                  </environmentVariables>
+                </configuration>
+                <id>integration-test</id>
+                <phase>integration-test</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+  </profiles>
 </project>
