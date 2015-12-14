@@ -97,6 +97,30 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <configuration>
+              <executable>python</executable>
+              <workingDirectory>src/integration/python</workingDirectory>
+              <arguments>
+                <argument>tests.py</argument>
+              </arguments>
+              <environmentVariables>
+                <PYTHONPATH>../../main/python:$PYTHONPATH</PYTHONPATH>
+                <CASSANDRA_VERSION>${cassandra.version}</CASSANDRA_VERSION>
+              </environmentVariables>
+            </configuration>
+            <id>python-test</id>
+            <phase>integration-test</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
