@@ -5,7 +5,7 @@
 A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables.
 
 **Note**: This project is under heavy development and will likely be broken
-in may ways.
+in many ways.
 
 **Features:**
 
