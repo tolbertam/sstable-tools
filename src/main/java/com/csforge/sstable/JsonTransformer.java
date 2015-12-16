@@ -36,14 +36,17 @@ public final class JsonTransformer {
 
     private final CFMetaData metadata;
 
-    private JsonTransformer(JsonGenerator json, CFMetaData metadata) {
+    private boolean shortKeys = false;
+
+    private JsonTransformer(JsonGenerator json, CFMetaData metadata, boolean shortKeys) {
         this.json = json;
         this.metadata = metadata;
+        this.shortKeys = shortKeys;
     }
 
-    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, OutputStream out) throws IOException {
+    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata);
+            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
             DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
             prettyPrinter.indentObjectsWith(transformer.indenter);
             prettyPrinter.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
@@ -55,9 +58,9 @@ public final class JsonTransformer {
         }
     }
 
-    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, OutputStream out) throws IOException {
+    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata);
+            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
             DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
             prettyPrinter.indentObjectsWith(transformer.indenter);
             prettyPrinter.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
@@ -76,7 +79,7 @@ public final class JsonTransformer {
             json.writeStartArray();
             if (keyValidator instanceof CompositeType) {
                 // if a composite type, the partition has multiple keys.
-                CompositeType compositeType = (CompositeType)keyValidator;
+                CompositeType compositeType = (CompositeType) keyValidator;
                 assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
                 ByteBuffer keyBytes = key.getKey().duplicate();
                 // Skip static data if it exists.
@@ -132,9 +135,14 @@ public final class JsonTransformer {
             json.writeStartObject();
 
             json.writeFieldName("partition");
+
             json.writeStartObject();
             json.writeFieldName("key");
-            serializePartitionKey(partition.getKey());
+            if(this.shortKeys) {
+                json.writeString(metadata.getKeyValidator().getString(partition.getKey().getKey()));
+            } else {
+                serializePartitionKey(partition.getKey());
+            }
 
             if(!partition.isLive()) {
                 json.writeFieldName("deletion_info");
@@ -262,21 +270,29 @@ public final class JsonTransformer {
     private void serializeClustering(ClusteringPrefix clustering) throws IOException {
         if(clustering.size() > 0) {
             json.writeFieldName("clustering");
-            json.writeStartArray();
             indenter.setCompact(true);
+            json.writeStartArray();
             List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
             for (int i = 0; i < clusteringColumns.size(); i++) {
                 ColumnDefinition column = clusteringColumns.get(i);
-                json.writeStartObject();
-                json.writeFieldName("name");
-                json.writeString(column.name.toCQLString());
-                json.writeFieldName("value");
-                if (i >= clustering.size()) {
-                    json.writeString("*");
+                if(this.shortKeys) {
+                    if (i >= clustering.size()) {
+                        json.writeString("*");
+                    } else {
+                        json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    }
                 } else {
-                    json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    json.writeStartObject();
+                    json.writeFieldName("name");
+                    json.writeString(column.name.toCQLString());
+                    json.writeFieldName("value");
+                    if (i >= clustering.size()) {
+                        json.writeString("*");
+                    } else {
+                        json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    }
+                    json.writeEndObject();
                 }
-                json.writeEndObject();
             }
             json.writeEndArray();
             indenter.setCompact(false);
