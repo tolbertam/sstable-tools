@@ -41,17 +41,17 @@ public class SSTable2Json {
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
-        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included. May be used multiple times. If not set will default to all keys");
+        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included.  May be used multiple times.  If not set will default to all keys.");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Partition key to be excluded. May be used multiple times");
+        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Partition key to be excluded.  May be used multiple times.");
         excludeKey.setArgs(Option.UNLIMITED_VALUES);
 
-        Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Only print out the keys for the sstable. If enabled other options are ignored");
-        Option shortKeys = new Option(SHORT_KEYS_OPTION, false,
-                "Only display key values, not names. Required (and defaulted) to true if -c is not provided.");
+        Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Only print out the keys for the sstable.  If enabled other options are ignored.");
 
-        Option cqlCreate = new Option(CREATE_OPTION, true, "file containing \"CREATE TABLE...\" for the sstable's chema. Used to determine the partition and clustering key names. Must not include \"keyspace.\" in create statement");
+        Option cqlCreate = new Option(CREATE_OPTION, true, "Optional file containing \"CREATE TABLE...\" for the sstable's schema.  " +
+                "Used to determine the partition and clustering key names. Must not include \"keyspace.\" in create statement.  " +
+                "If not included will not print key names.");
 
         options.addOption(partitionKey);
         options.addOption(excludeKey);
@@ -75,7 +75,7 @@ public class SSTable2Json {
             try (PrintWriter errWriter = new PrintWriter(System.err, true)) {
                 HelpFormatter formatter = new HelpFormatter();
                 formatter.printHelp(errWriter, 120, "toJson <sstable>",
-                    "Converts SSTable into a JSON formatted document.",
+                        System.getProperty("line.separator") + "Converts SSTable into a JSON formatted document.",
                     options, 2, 1, "", true);
             } finally {
                 System.exit(-1);
