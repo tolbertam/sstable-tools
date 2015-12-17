@@ -1,12 +1,5 @@
 package com.csforge.sstable;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.stream.Stream;
-
 import com.csforge.sstable.reader.Partition;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -24,6 +17,13 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.Stream;
+
 public final class JsonTransformer {
 
     private static final Logger logger = LoggerFactory.getLogger(JsonTransformer.class);
@@ -32,37 +32,37 @@ public final class JsonTransformer {
 
     private final JsonGenerator json;
 
-    private final CompactIndenter indenter = new CompactIndenter();
+    private final CompactIndenter objectIndenter = new CompactIndenter();
+
+    private final CompactIndenter arrayIndenter = new CompactIndenter();
 
     private final CFMetaData metadata;
 
-    private JsonTransformer(JsonGenerator json, CFMetaData metadata) {
+    private final boolean shortKeys;
+
+    private JsonTransformer(JsonGenerator json, CFMetaData metadata, boolean shortKeys) {
         this.json = json;
         this.metadata = metadata;
+        this.shortKeys = shortKeys;
+
+        DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
+        prettyPrinter.indentObjectsWith(objectIndenter);
+        prettyPrinter.indentArraysWith(arrayIndenter);
+        json.setPrettyPrinter(prettyPrinter);
     }
 
-    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, OutputStream out) throws IOException {
+    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata);
-            DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
-            prettyPrinter.indentObjectsWith(transformer.indenter);
-            prettyPrinter.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-            json.setPrettyPrinter(prettyPrinter);
-
+            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
             json.writeStartArray();
             partitions.forEach(transformer::serializePartition);
             json.writeEndArray();
         }
     }
 
-    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, OutputStream out) throws IOException {
+    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata);
-            DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
-            prettyPrinter.indentObjectsWith(transformer.indenter);
-            prettyPrinter.indentArraysWith(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE);
-            json.setPrettyPrinter(prettyPrinter);
-
+            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
             json.writeStartArray();
             keys.forEach(transformer::serializePartitionKey);
             json.writeEndArray();
@@ -71,12 +71,15 @@ public final class JsonTransformer {
 
     private void serializePartitionKey(DecoratedKey key) {
         AbstractType<?> keyValidator = metadata.getKeyValidator();
-        indenter.setCompact(true);
+        objectIndenter.setCompact(true);
         try {
+            if (this.shortKeys) {
+                arrayIndenter.setCompact(true);
+            }
             json.writeStartArray();
             if (keyValidator instanceof CompositeType) {
                 // if a composite type, the partition has multiple keys.
-                CompositeType compositeType = (CompositeType)keyValidator;
+                CompositeType compositeType = (CompositeType) keyValidator;
                 assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
                 ByteBuffer keyBytes = key.getKey().duplicate();
                 // Skip static data if it exists.
@@ -90,17 +93,22 @@ public final class JsonTransformer {
                 int i = 0;
                 while (keyBytes.remaining() > 0 && i < compositeType.getComponents().size()) {
                     AbstractType<?> colType = compositeType.getComponents().get(i);
-                    ColumnDefinition column = metadata.partitionKeyColumns().get(i);
 
-                    json.writeStartObject();
-                    json.writeFieldName("name");
-                    json.writeString(column.name.toString());
-
-                    json.writeFieldName("value");
                     ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
                     String colValue = colType.getString(value);
-                    json.writeString(colValue);
-                    json.writeEndObject();
+
+                    if (this.shortKeys) {
+                        json.writeString(colValue);
+                    } else {
+                        ColumnDefinition column = metadata.partitionKeyColumns().get(i);
+                        json.writeStartObject();
+                        json.writeFieldName("name");
+                        json.writeString(column.name.toString());
+
+                        json.writeFieldName("value");
+                        json.writeString(colValue);
+                        json.writeEndObject();
+                    }
 
                     byte b = keyBytes.get();
                     if (b != 0) {
@@ -120,7 +128,10 @@ public final class JsonTransformer {
                 json.writeEndObject();
             }
             json.writeEndArray();
-            indenter.setCompact(false);
+            objectIndenter.setCompact(false);
+            if (this.shortKeys) {
+                arrayIndenter.setCompact(false);
+            }
         } catch(IOException e) {
             logger.error("Failure serializing partition key.", e);
         }
@@ -132,20 +143,21 @@ public final class JsonTransformer {
             json.writeStartObject();
 
             json.writeFieldName("partition");
+
             json.writeStartObject();
             json.writeFieldName("key");
             serializePartitionKey(partition.getKey());
 
             if(!partition.isLive()) {
                 json.writeFieldName("deletion_info");
-                indenter.setCompact(true);
+                objectIndenter.setCompact(true);
                 json.writeStartObject();
                 json.writeFieldName("deletion_time");
                 json.writeNumber(partition.markedForDeleteAt());
                 json.writeFieldName("tstamp");
                 json.writeNumber(partition.localDeletionTime());
                 json.writeEndObject();
-                indenter.setCompact(false);
+                objectIndenter.setCompact(false);
                 json.writeEndObject();
             } else {
                 json.writeEndObject();
@@ -185,9 +197,9 @@ public final class JsonTransformer {
 
             LivenessInfo liveInfo = row.primaryKeyLivenessInfo();
             if (!liveInfo.isEmpty()) {
-                indenter.setCompact(false);
+                objectIndenter.setCompact(false);
                 json.writeFieldName("liveness_info");
-                indenter.setCompact(true);
+                objectIndenter.setCompact(true);
                 json.writeStartObject();
                 json.writeFieldName("tstamp");
                 json.writeNumber(liveInfo.timestamp());
@@ -200,20 +212,20 @@ public final class JsonTransformer {
                     json.writeBoolean(liveInfo.localExpirationTime() < (System.currentTimeMillis() / 1000));
                 }
                 json.writeEndObject();
-                indenter.setCompact(false);
+                objectIndenter.setCompact(false);
             }
 
             // If this is a deletion, indicate that, otherwise write cells.
             if(!row.deletion().isLive()) {
                 json.writeFieldName("deletion_info");
-                indenter.setCompact(true);
+                objectIndenter.setCompact(true);
                 json.writeStartObject();
                 json.writeFieldName("deletion_time");
                 json.writeNumber(row.deletion().time().markedForDeleteAt());
                 json.writeFieldName("tstamp");
                 json.writeNumber(row.deletion().time().localDeletionTime());
                 json.writeEndObject();
-                indenter.setCompact(false);
+                objectIndenter.setCompact(false);
             } else {
                 json.writeFieldName("cells");
                 json.writeStartArray();
@@ -243,7 +255,7 @@ public final class JsonTransformer {
                 serializeBound(bm.closeBound(false), bm.closeDeletionTime(false));
             }
             json.writeEndObject();
-            indenter.setCompact(false);
+            objectIndenter.setCompact(false);
         } catch(IOException e) {
             logger.error("Failure parsing tombstone.", e);
         }
@@ -262,43 +274,57 @@ public final class JsonTransformer {
     private void serializeClustering(ClusteringPrefix clustering) throws IOException {
         if(clustering.size() > 0) {
             json.writeFieldName("clustering");
+            objectIndenter.setCompact(true);
             json.writeStartArray();
-            indenter.setCompact(true);
+            if (this.shortKeys) {
+                arrayIndenter.setCompact(true);
+            }
             List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
             for (int i = 0; i < clusteringColumns.size(); i++) {
                 ColumnDefinition column = clusteringColumns.get(i);
-                json.writeStartObject();
-                json.writeFieldName("name");
-                json.writeString(column.name.toCQLString());
-                json.writeFieldName("value");
-                if (i >= clustering.size()) {
-                    json.writeString("*");
+                if(this.shortKeys) {
+                    if (i >= clustering.size()) {
+                        json.writeString("*");
+                    } else {
+                        json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    }
                 } else {
-                    json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    json.writeStartObject();
+                    json.writeFieldName("name");
+                    json.writeString(column.name.toCQLString());
+                    json.writeFieldName("value");
+                    if (i >= clustering.size()) {
+                        json.writeString("*");
+                    } else {
+                        json.writeString(column.cellValueType().getString(clustering.get(i)));
+                    }
+                    json.writeEndObject();
                 }
-                json.writeEndObject();
             }
             json.writeEndArray();
-            indenter.setCompact(false);
+            objectIndenter.setCompact(false);
+            if (this.shortKeys) {
+                arrayIndenter.setCompact(false);
+            }
         }
     }
 
     private void serializeDeletion(DeletionTime deletion) throws IOException {
         json.writeFieldName("deletion_info");
-        indenter.setCompact(true);
+        objectIndenter.setCompact(true);
         json.writeStartObject();
         json.writeFieldName("deletion_time");
         json.writeNumber(deletion.markedForDeleteAt());
         json.writeFieldName("tstamp");
         json.writeNumber(deletion.localDeletionTime());
         json.writeEndObject();
-        indenter.setCompact(false);
+        objectIndenter.setCompact(false);
     }
 
     private void serializeCell(Cell cell, LivenessInfo liveInfo) {
         try {
             json.writeStartObject();
-            indenter.setCompact(true);
+            objectIndenter.setCompact(true);
             json.writeFieldName("name");
             json.writeString(cell.column().name.toCQLString());
 
@@ -322,7 +348,7 @@ public final class JsonTransformer {
                 json.writeBoolean(!cell.isLive((int)(System.currentTimeMillis() / 1000)));
             }
             json.writeEndObject();
-            indenter.setCompact(false);
+            objectIndenter.setCompact(false);
         } catch(IOException e) {
             logger.error("Failure parsing cell.", e);
         }

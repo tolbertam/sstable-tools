@@ -44,12 +44,14 @@ should be much more pleasant to follow.
 ```
 java -jar sstable-tools.jar toJson
 
-usage: toJson <sstable> -c <arg> [-e] [-k <arg>] [-x <arg>]
+usage: toJson <sstable> [-c <arg>] [-e] [-k <arg>] [-x <arg>]
+
 Converts SSTable into a JSON formatted document.
-  -c <arg> file containing "CREATE TABLE..." for the sstable's schema
-  -e       Enumerate keys only
-  -k <arg> Partition key to be included
-  -x <arg> Partition key to be excluded
+  -c <arg> Optional file containing "CREATE TABLE..." for the sstable's schema.  Used to determine the partition and
+           clustering key names. Must not include "keyspace." in create statement.  If not included will not print key names.
+  -e       Only print out the keys for the sstable.  If enabled other options are ignored.
+  -k <arg> Partition key to be included.  May be used multiple times.  If not set will default to all keys.
+  -x <arg> Partition key to be excluded.  May be used multiple times.
 ```
 
 ### Examples
@@ -116,6 +118,34 @@ series of rows with columns:
           { "name" : "low", "value" : "90.2" },
           { "name" : "open", "value" : "96.72", "tstamp" : 1450034999438049, "ttl" : 300, "expires_at" : 1450035299, "expired" : true },
           { "name" : "volume", "value" : "49554" }
+        ]
+      }
+    ]
+  }
+]
+```
+
+An example demonstrating what output will look like if you do not provide a CQL
+schema via `-c`.  Partition and Clustering key column names are simply omitted
+and only their values are provided:
+
+
+```json
+[
+  {
+    "partition" : {
+      "key" : [ "ZLC", "2003" ]
+    },
+    "rows" : [
+      {
+        "type" : "row",
+        "clustering" : [ "12", "31" ],
+        "cells" : [
+          { "name" : "close", "value" : "53.2", "tstamp" : 1449469421557041 },
+          { "name" : "high", "value" : "53.48", "tstamp" : 1449469421557041 },
+          { "name" : "low", "value" : "52.56", "tstamp" : 1449469421557041 },
+          { "name" : "open", "value" : "53.35", "tstamp" : 1449469421557041 },
+          { "name" : "volume", "value" : "93600", "tstamp" : 1449469421557041 }
         ]
       }
     ]

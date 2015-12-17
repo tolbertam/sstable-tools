@@ -32,6 +32,8 @@ public class SSTable2Json {
 
     private static final String ENUMERATE_KEYS_OPTION = "e";
 
+    private static final String SHORT_KEYS_OPTION = "s";
+
     static {
         Config.setClientMode(true);
 
@@ -39,16 +41,17 @@ public class SSTable2Json {
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
 
-        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included");
+        Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included.  May be used multiple times.  If not set will default to all keys.");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Partition key to be excluded");
+        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Partition key to be excluded.  May be used multiple times.");
         excludeKey.setArgs(Option.UNLIMITED_VALUES);
 
-        Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Enumerate keys only");
+        Option enumerateKeys = new Option(ENUMERATE_KEYS_OPTION, false, "Only print out the keys for the sstable.  If enabled other options are ignored.");
 
-        Option cqlCreate = new Option(CREATE_OPTION, true, "file containing \"CREATE TABLE...\" for the sstable's schema");
-        cqlCreate.setRequired(true);
+        Option cqlCreate = new Option(CREATE_OPTION, true, "Optional file containing \"CREATE TABLE...\" for the sstable's schema.  " +
+                "Used to determine the partition and clustering key names. Must not include \"keyspace.\" in create statement.  " +
+                "If not included will not print key names.");
 
         options.addOption(partitionKey);
         options.addOption(excludeKey);
@@ -72,7 +75,7 @@ public class SSTable2Json {
             try (PrintWriter errWriter = new PrintWriter(System.err, true)) {
                 HelpFormatter formatter = new HelpFormatter();
                 formatter.printHelp(errWriter, 120, "toJson <sstable>",
-                    "Converts SSTable into a JSON formatted document.",
+                        System.getProperty("line.separator") + "Converts SSTable into a JSON formatted document.",
                     options, 2, 1, "", true);
             } finally {
                 System.exit(-1);
@@ -87,17 +90,23 @@ public class SSTable2Json {
         String create = cmd.getOptionValue(CREATE_OPTION);
 
         try {
-            String cql = new String(Files.readAllBytes(Paths.get(create)));
-            CassandraReader reader = new CassandraReader(cql);
+            CassandraReader reader = null;
+            boolean shortKeys = create == null;
+            if(create != null) {
+                String cql = new String(Files.readAllBytes(Paths.get(create)));
+                reader = CassandraReader.fromCql(cql);
+            } else {
+                reader = CassandraReader.fromSSTable(sstablePath);
+            }
 
             if(enumerateKeysOnly) {
                 Stream<DecoratedKey> sstableKeys = reader.keys(sstablePath);
-                JsonTransformer.keysToJson(sstableKeys, reader.getMetadata(), System.out);
+                JsonTransformer.keysToJson(sstableKeys, reader.getMetadata(), shortKeys, System.out);
             } else {
                 Stream<Partition> partitions = keys == null ?
                         reader.readSSTable(sstablePath, excludes) :
                         reader.readSSTable(sstablePath, Arrays.stream(keys), excludes);
-                JsonTransformer.toJson(partitions, reader.getMetadata(), System.out);
+                JsonTransformer.toJson(partitions, reader.getMetadata(), shortKeys, System.out);
             }
         } catch (IOException e) {
             e.printStackTrace();
