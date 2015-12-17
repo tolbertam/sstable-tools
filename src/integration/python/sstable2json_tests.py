@@ -79,11 +79,11 @@ class ToJson(IntegrationTest):
         print output
         result = json.loads(output)
         self.assertEqual(2, len(result))
-        self.assertEqual("a:b", get_partition("a:b", result)['partition']['key'])
-        self.assertEqual("e:f", get_partition("e:f", result)['partition']['key'])
-        self.assertEqual(1, len(get_partition("a:b", result)['rows']))
-        self.assertEqual(['c', 'd'], get_partition("a:b", result)['rows'][0]['clustering'])
-        self.assertEqual(['g', 'h'], get_partition("e:f", result)['rows'][0]['clustering'])
+        self.assertEqual(["a","b"], get_partition(["a","b"], result)['partition']['key'])
+        self.assertEqual(["e","f"], get_partition(["e","f"], result)['partition']['key'])
+        self.assertEqual(1, len(get_partition(["a","b"], result)['rows']))
+        self.assertEqual(['c', 'd'], get_partition(["a","b"], result)['rows'][0]['clustering'])
+        self.assertEqual(['g', 'h'], get_partition(["e","f"], result)['rows'][0]['clustering'])
 
 
     def test_composite_with_schema(self):
