@@ -1,8 +1,18 @@
 # SSTable Tools
 
-[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools)[ ![Download](https://api.bintray.com/packages/tolbertam/sstable-tools/sstable-tools.jar/images/download.svg) ](https://bintray.com/tolbertam/sstable-tools/sstable-tools.jar/_latestVersion)
+[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools)
 
 A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables.
+
+Pre compiled binary available from bintray from [ ![Download](https://api.bintray.com/packages/tolbertam/sstable-tools/sstable-tools.jar/images/download.svg) ](https://bintray.com/tolbertam/sstable-tools/sstable-tools.jar/_latestVersion) below.
+
+* [sstable-tools-3.0.0-alpha1.jar](https://bintray.com/artifact/download/tolbertam/sstable-tools/sstable-tools-3.0.0-alpha1.jar) -  Currently tested with 3.0, 3.1.
+
+Example Usage:
+
+    java -jar sstable-tools-3.0.0-alpha1.jar toJson ma-2-big-Data.db
+
+see more below
 
 **Note**: This project is under heavy development and will likely be broken
 in many ways.
