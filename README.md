@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools)
 
-A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables.
+A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under heavy development and not yet stable.
 
 Pre compiled binary available from bintray from [ ![Download](https://api.bintray.com/packages/tolbertam/sstable-tools/sstable-tools.jar/images/download.svg) ](https://bintray.com/tolbertam/sstable-tools/sstable-tools.jar/_latestVersion) below.
 
@@ -12,9 +12,9 @@ Example Usage:
 
     java -jar sstable-tools-3.0.0-alpha1.jar toJson ma-2-big-Data.db
 
-see more below
+**Note:** No environment configuration is necessary for this tool to work if all components of the sstable are available but the cql create statement allows for more details.
 
-**Note**: This project is under heavy development
+see more below
 
 **Features:**
 
