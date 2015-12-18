@@ -14,8 +14,7 @@ Example Usage:
 
 see more below
 
-**Note**: This project is under heavy development and will likely be broken
-in many ways.
+**Note**: This project is under heavy development
 
 **Features:**
 
@@ -44,6 +43,8 @@ of partitions and their cells (identified by their clustering and column
 name) whereas with Cassandra 3.0 an SSTable now represents partitions and their
 rows.  You can read about these changes in more detail by visiting
 [this blog post](http://www.datastax.com/2015/12/storage-engine-30).
+
+Additional improvements over the sstable2json tool includes no longer requiring the cassandra.yaml in classpath with the schema of the sstables loaded. Also by running in client mode this tool will not write to system tables or your commit log. It can safely be run as any user anywhere with no side effects.
 
 Since data is now organized to map better to the CQL data model, understanding
 the layout of data is now easier to grasp and thus the output of this tool
