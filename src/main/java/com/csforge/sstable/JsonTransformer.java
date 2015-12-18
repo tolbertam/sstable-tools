@@ -80,7 +80,7 @@ public final class JsonTransformer {
             if (keyValidator instanceof CompositeType) {
                 // if a composite type, the partition has multiple keys.
                 CompositeType compositeType = (CompositeType) keyValidator;
-                assert compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
+                assert shortKeys || compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
                 ByteBuffer keyBytes = key.getKey().duplicate();
                 // Skip static data if it exists.
                 if (keyBytes.remaining() >= 2) {
