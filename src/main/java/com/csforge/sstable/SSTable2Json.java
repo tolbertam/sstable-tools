@@ -88,7 +88,6 @@ public class SSTable2Json {
                 new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
         String create = cmd.getOptionValue(CREATE_OPTION);
-
         try {
             CassandraReader reader = null;
             boolean shortKeys = create == null;

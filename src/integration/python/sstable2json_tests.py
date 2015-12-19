@@ -1,4 +1,4 @@
-
+import re
 import json
 from common import *
 from tempfile import NamedTemporaryFile
@@ -23,6 +23,15 @@ COMPOSITE_TABLE = """
         PRIMARY KEY((key1, key2), ckey1, ckey2)
     );
 """
+
+COLLECTION_TABLE = """
+    CREATE TABLE collections (
+        key1 varchar,
+        value list<text>,
+        PRIMARY KEY(key1)
+    );
+"""
+
 
 class TestKeysOnly(IntegrationTest):
     def __init__(self, methodName='runTest'):
@@ -62,6 +71,53 @@ class ToJson(IntegrationTest):
     def __init__(self, methodName='runTest'):
         TestCase.__init__(self, methodName)
         self.name = 'ToJson'
+
+    def test_collection(self):
+        self.cluster.populate(1).start()
+        [node1] = self.cluster.nodelist()
+        session = self.cql_connection(node1, "test")
+        session.execute(COLLECTION_TABLE)
+        session.execute("UPDATE collections SET value = [ 'v1', 'v2' ] WHERE key1 = 'testp';")
+        session.execute("UPDATE collections SET value = [ 'v3' ] + value WHERE key1 = 'testp';")
+
+        node1.flush()
+        node1.compact()
+        sstable = node1.get_sstables("test", "collections")[0]
+
+        tempf = NamedTemporaryFile(delete=False)
+        tempf.write(COLLECTION_TABLE)
+        tempf.flush()
+        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-c", tempf.name])
+        print output
+        result = json.loads(output)
+        for p in result:
+            try:
+                del p['rows'][0]['liveness_info']
+            except:
+                pass
+            for cell in p['rows'][0]['cells']:
+                del cell['path']
+                del cell['tstamp']
+
+        self.assertEqual(result,[
+                                  {
+                                    "partition" : {
+                                      "key" : [
+                                        { "name" : "key1", "value" : "testp" }
+                                      ]
+                                    },
+                                    "rows" : [
+                                      {
+                                        "type" : "row",
+                                        "cells" : [
+                                          { "name" : "value", "value" : "v3"},
+                                          { "name" : "value", "value" : "v1"},
+                                          { "name" : "value", "value" : "v2"}
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ] )
 
     def test_composite(self):
         self.cluster.populate(1).start()

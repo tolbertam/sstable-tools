@@ -11,6 +11,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -21,6 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -120,12 +122,16 @@ public final class JsonTransformer {
                 // if not a composite type, assume a single column partition key.
                 assert metadata.partitionKeyColumns().size() == 1;
                 ColumnDefinition column = metadata.partitionKeyColumns().get(0);
-                json.writeStartObject();
-                json.writeFieldName("name");
-                json.writeString(column.name.toString());
-                json.writeFieldName("value");
-                json.writeString(keyValidator.getString(key.getKey()));
-                json.writeEndObject();
+                if(shortKeys) {
+                    json.writeString(keyValidator.getString(key.getKey()));
+                } else {
+                    json.writeStartObject();
+                    json.writeFieldName("name");
+                    json.writeString(column.name.toString());
+                    json.writeFieldName("value");
+                    json.writeString(keyValidator.getString(key.getKey()));
+                    json.writeEndObject();
+                }
             }
             json.writeEndArray();
             objectIndenter.setCompact(false);
@@ -326,8 +332,20 @@ public final class JsonTransformer {
             json.writeStartObject();
             objectIndenter.setCompact(true);
             json.writeFieldName("name");
+            AbstractType<?> type = cell.column().type;
             json.writeString(cell.column().name.toCQLString());
 
+            if(cell.path() != null && cell.path().size() > 0) {
+                CollectionType ct = (CollectionType)type;
+                json.writeFieldName("path");
+                arrayIndenter.setCompact(true);
+                json.writeStartArray();
+                for(int i = 0; i < cell.path().size();i++) {
+                    json.writeString(ct.nameComparator().getString(cell.path().get(i)));
+                }
+                json.writeEndArray();
+                arrayIndenter.setCompact(false);
+            }
             if (cell.isTombstone()) {
                 json.writeFieldName("deletion_time");
                 json.writeNumber(cell.localDeletionTime());
