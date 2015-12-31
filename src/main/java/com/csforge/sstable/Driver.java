@@ -7,7 +7,6 @@ import java.util.Arrays;
 
 public class Driver {
     public static void main(String ... args) {
-        ((LoggerContext) LoggerFactory.getILoggerFactory()).stop();
         if (args.length == 0) {
             printCommands();
             System.exit(-1);
