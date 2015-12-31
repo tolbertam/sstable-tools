@@ -33,29 +33,23 @@ public final class JsonTransformer {
 
     private final JsonGenerator json;
 
-    private final CompactIndenter objectIndenter;
+    private final CompactIndenter objectIndenter = new CompactIndenter();
 
-    private final CompactIndenter arrayIndenter;
+    private final CompactIndenter arrayIndenter = new CompactIndenter();
 
-    private final CompactIndenter compactIndenter;
+    private final CompactIndenter partitionIndenter = new CompactIndenter("", "", System.lineSeparator());
 
     private final CFMetaData metadata;
-
-    private final boolean compact;
 
     private JsonTransformer(JsonGenerator json, CFMetaData metadata, boolean compact) {
         this.json = json;
         this.metadata = metadata;
-        this.compact = compact;
-        objectIndenter = new CompactIndenter();
-        arrayIndenter = new CompactIndenter();
-        compactIndenter = new CompactIndenter("", "", System.lineSeparator());
 
         DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
         if(compact) {
-            compactIndenter.setCompact(false);
-            prettyPrinter.indentObjectsWith(compactIndenter);
-            prettyPrinter.indentArraysWith(compactIndenter);
+            partitionIndenter.setCompact(false);
+            prettyPrinter.indentObjectsWith(partitionIndenter);
+            prettyPrinter.indentArraysWith(partitionIndenter);
         } else {
             prettyPrinter.indentObjectsWith(objectIndenter);
             prettyPrinter.indentArraysWith(arrayIndenter);
@@ -131,9 +125,9 @@ public final class JsonTransformer {
     private void serializePartition(Partition partition) {
         String key = metadata.getKeyValidator().getString(partition.getKey().getKey());
         try {
-            compactIndenter.setCompact(false);
+            partitionIndenter.setCompact(false);
             json.writeStartObject();
-            compactIndenter.setCompact(true);
+            partitionIndenter.setCompact(true);
 
             json.writeFieldName("partition");
 
@@ -172,7 +166,7 @@ public final class JsonTransformer {
 
             json.writeEndObject();
 
-            compactIndenter.setCompact(false);
+            partitionIndenter.setCompact(false);
         } catch (IOException e) {
             logger.error("Fatal error parsing partition: {}", key, e);
         }
