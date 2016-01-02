@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -38,33 +37,38 @@ public final class JsonTransformer {
 
     private final CompactIndenter arrayIndenter = new CompactIndenter();
 
+    private final CompactIndenter partitionIndenter = new CompactIndenter("", "", System.lineSeparator());
+
     private final CFMetaData metadata;
 
-    private final boolean shortKeys;
-
-    private JsonTransformer(JsonGenerator json, CFMetaData metadata, boolean shortKeys) {
+    private JsonTransformer(JsonGenerator json, CFMetaData metadata, boolean compact) {
         this.json = json;
         this.metadata = metadata;
-        this.shortKeys = shortKeys;
 
         DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
-        prettyPrinter.indentObjectsWith(objectIndenter);
-        prettyPrinter.indentArraysWith(arrayIndenter);
+        if(compact) {
+            partitionIndenter.setCompact(false);
+            prettyPrinter.indentObjectsWith(partitionIndenter);
+            prettyPrinter.indentArraysWith(partitionIndenter);
+        } else {
+            prettyPrinter.indentObjectsWith(objectIndenter);
+            prettyPrinter.indentArraysWith(arrayIndenter);
+        }
         json.setPrettyPrinter(prettyPrinter);
     }
 
-    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
+    public static void toJson(Stream<Partition> partitions, CFMetaData metadata, boolean compact, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
+            JsonTransformer transformer = new JsonTransformer(json, metadata, compact);
             json.writeStartArray();
             partitions.forEach(transformer::serializePartition);
             json.writeEndArray();
         }
     }
 
-    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, boolean shortKeys, OutputStream out) throws IOException {
+    public static void keysToJson(Stream<DecoratedKey> keys, CFMetaData metadata, boolean compact, OutputStream out) throws IOException {
         try(JsonGenerator json = jsonFactory.createGenerator(new OutputStreamWriter(out, "UTF-8"))) {
-            JsonTransformer transformer = new JsonTransformer(json, metadata, shortKeys);
+            JsonTransformer transformer = new JsonTransformer(json, metadata, compact);
             json.writeStartArray();
             keys.forEach(transformer::serializePartitionKey);
             json.writeEndArray();
@@ -75,14 +79,11 @@ public final class JsonTransformer {
         AbstractType<?> keyValidator = metadata.getKeyValidator();
         objectIndenter.setCompact(true);
         try {
-            if (this.shortKeys) {
-                arrayIndenter.setCompact(true);
-            }
+            arrayIndenter.setCompact(true);
             json.writeStartArray();
             if (keyValidator instanceof CompositeType) {
                 // if a composite type, the partition has multiple keys.
                 CompositeType compositeType = (CompositeType) keyValidator;
-                assert shortKeys || compositeType.getComponents().size() == metadata.partitionKeyColumns().size();
                 ByteBuffer keyBytes = key.getKey().duplicate();
                 // Skip static data if it exists.
                 if (keyBytes.remaining() >= 2) {
@@ -99,18 +100,7 @@ public final class JsonTransformer {
                     ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(keyBytes);
                     String colValue = colType.getString(value);
 
-                    if (this.shortKeys) {
-                        json.writeString(colValue);
-                    } else {
-                        ColumnDefinition column = metadata.partitionKeyColumns().get(i);
-                        json.writeStartObject();
-                        json.writeFieldName("name");
-                        json.writeString(column.name.toString());
-
-                        json.writeFieldName("value");
-                        json.writeString(colValue);
-                        json.writeEndObject();
-                    }
+                    json.writeString(colValue);
 
                     byte b = keyBytes.get();
                     if (b != 0) {
@@ -122,22 +112,11 @@ public final class JsonTransformer {
                 // if not a composite type, assume a single column partition key.
                 assert metadata.partitionKeyColumns().size() == 1;
                 ColumnDefinition column = metadata.partitionKeyColumns().get(0);
-                if(shortKeys) {
-                    json.writeString(keyValidator.getString(key.getKey()));
-                } else {
-                    json.writeStartObject();
-                    json.writeFieldName("name");
-                    json.writeString(column.name.toString());
-                    json.writeFieldName("value");
-                    json.writeString(keyValidator.getString(key.getKey()));
-                    json.writeEndObject();
-                }
+                json.writeString(keyValidator.getString(key.getKey()));
             }
             json.writeEndArray();
             objectIndenter.setCompact(false);
-            if (this.shortKeys) {
-                arrayIndenter.setCompact(false);
-            }
+            arrayIndenter.setCompact(false);
         } catch(IOException e) {
             logger.error("Failure serializing partition key.", e);
         }
@@ -146,7 +125,9 @@ public final class JsonTransformer {
     private void serializePartition(Partition partition) {
         String key = metadata.getKeyValidator().getString(partition.getKey().getKey());
         try {
+            partitionIndenter.setCompact(false);
             json.writeStartObject();
+            partitionIndenter.setCompact(true);
 
             json.writeFieldName("partition");
 
@@ -184,6 +165,8 @@ public final class JsonTransformer {
             }
 
             json.writeEndObject();
+
+            partitionIndenter.setCompact(false);
         } catch (IOException e) {
             logger.error("Fatal error parsing partition: {}", key, e);
         }
@@ -282,36 +265,19 @@ public final class JsonTransformer {
             json.writeFieldName("clustering");
             objectIndenter.setCompact(true);
             json.writeStartArray();
-            if (this.shortKeys) {
-                arrayIndenter.setCompact(true);
-            }
+            arrayIndenter.setCompact(true);
             List<ColumnDefinition> clusteringColumns = metadata.clusteringColumns();
             for (int i = 0; i < clusteringColumns.size(); i++) {
                 ColumnDefinition column = clusteringColumns.get(i);
-                if(this.shortKeys) {
-                    if (i >= clustering.size()) {
-                        json.writeString("*");
-                    } else {
-                        json.writeString(column.cellValueType().getString(clustering.get(i)));
-                    }
+                if (i >= clustering.size()) {
+                    json.writeString("*");
                 } else {
-                    json.writeStartObject();
-                    json.writeFieldName("name");
-                    json.writeString(column.name.toCQLString());
-                    json.writeFieldName("value");
-                    if (i >= clustering.size()) {
-                        json.writeString("*");
-                    } else {
-                        json.writeString(column.cellValueType().getString(clustering.get(i)));
-                    }
-                    json.writeEndObject();
+                    json.writeString(column.cellValueType().getString(clustering.get(i)));
                 }
             }
             json.writeEndArray();
             objectIndenter.setCompact(false);
-            if (this.shortKeys) {
-                arrayIndenter.setCompact(false);
-            }
+            arrayIndenter.setCompact(false);
         }
     }
 
@@ -382,16 +348,17 @@ public final class JsonTransformer {
         private final char[] indents;
         private final int charsPerLevel;
         private final String eol;
-        private static final String space = " ";
+        private final String space;
 
         private boolean compact = false;
 
         public CompactIndenter() {
-            this("  ", DefaultIndenter.SYS_LF);
+            this("  ", " ", DefaultIndenter.SYS_LF);
         }
 
-        public CompactIndenter(String indent, String eol) {
+        public CompactIndenter(String indent, String space, String eol) {
             this.eol = eol;
+            this.space = space;
 
             charsPerLevel = indent.length();
 

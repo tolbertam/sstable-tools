@@ -1,7 +1,6 @@
 import re
 import json
 from common import *
-from tempfile import NamedTemporaryFile
 
 CREATE_USER_TABLE = """
     CREATE TABLE users (
@@ -50,10 +49,7 @@ class TestKeysOnly(IntegrationTest):
         node1.compact()
         sstable = node1.get_sstables("test", "users")[0]
 
-        tempf = NamedTemporaryFile(delete=False)
-        tempf.write(CREATE_USER_TABLE)
-        tempf.flush()
-        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-c", tempf.name, "-e"])
+        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-e"])
         print output
         self.assertEqual(json.loads(output), [[{"name": "user_name", "value": "frodo"}]])
 
@@ -84,10 +80,7 @@ class ToJson(IntegrationTest):
         node1.compact()
         sstable = node1.get_sstables("test", "collections")[0]
 
-        tempf = NamedTemporaryFile(delete=False)
-        tempf.write(COLLECTION_TABLE)
-        tempf.flush()
-        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-c", tempf.name])
+        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable])
         print output
         result = json.loads(output)
         for p in result:
@@ -102,9 +95,7 @@ class ToJson(IntegrationTest):
         self.assertEqual(result,[
                                   {
                                     "partition" : {
-                                      "key" : [
-                                        { "name" : "key1", "value" : "testp" }
-                                      ]
+                                      "key" : [ "testp" ]
                                     },
                                     "rows" : [
                                       {
@@ -142,71 +133,6 @@ class ToJson(IntegrationTest):
         self.assertEqual(['g', 'h'], get_partition(["e","f"], result)['rows'][0]['clustering'])
 
 
-    def test_composite_with_schema(self):
-        self.cluster.populate(1).start()
-        [node1] = self.cluster.nodelist()
-        session = self.cql_connection(node1, "test")
-        session.execute(COMPOSITE_TABLE)
-        session.execute("INSERT INTO composites (key1, key2, ckey1, ckey2, value) VALUES('a', 'b', 'c', 'd', 1);")
-        session.execute("INSERT INTO composites (key1, key2, ckey1, ckey2, value) VALUES('e', 'f', 'g', 'h', 2);")
-
-        node1.flush()
-        node1.compact()
-        sstable = node1.get_sstables("test", "composites")[0]
-
-        tempf = NamedTemporaryFile(delete=False)
-        tempf.write(COMPOSITE_TABLE)
-        tempf.flush()
-        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-c", tempf.name])
-        print output
-        result = json.loads(output)
-        for p in result:
-            del p['rows'][0]['liveness_info']
-
-        self.assertEqual(result,
-        [
-          {
-            "partition" : {
-              "key" : [
-                { "name" : "key1", "value" : "e" },
-                { "name" : "key2", "value" : "f" }
-              ]
-            },
-            "rows" : [
-              {
-                "type" : "row",
-                "clustering" : [
-                  { "name" : "ckey1", "value" : "g" },
-                  { "name" : "ckey2", "value" : "h" }
-                ],
-                "cells" : [
-                  { "name" : "value", "value" : "2" }
-                ]
-              }
-            ]
-          },
-          {
-            "partition" : {
-              "key" : [
-                { "name" : "key1", "value" : "a" },
-                { "name" : "key2", "value" : "b" }
-              ]
-            },
-            "rows" : [
-              {
-                "type" : "row",
-                "clustering" : [
-                  { "name" : "ckey1", "value" : "c" },
-                  { "name" : "ckey2", "value" : "d" }
-                ],
-                "cells" : [
-                  { "name" : "value", "value" : "1" },
-                ]
-              }
-            ]
-          }
-        ])
-
     def test_simple_single(self):
         self.cluster.populate(1).start()
         [node1] = self.cluster.nodelist()
@@ -219,14 +145,11 @@ class ToJson(IntegrationTest):
         node1.compact()
         sstable = node1.get_sstables("test", "users")[0]
 
-        tempf = NamedTemporaryFile(delete=False)
-        tempf.write(CREATE_USER_TABLE)
-        tempf.flush()
-        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable, "-c", tempf.name])
+        output = sh(["java", "-jar", self.uberjar_location, "toJson", sstable])
         print output
         result = json.loads(output)
         del result[0]["rows"][0]['liveness_info']
-        self.assertEqual({'partition': {'key': [{'name': 'user_name', 'value': 'frodo'}]},
+        self.assertEqual({'partition': {'key': ['frodo']},
                           'rows': [{
                                    'type': 'row',
                                    'cells': [
