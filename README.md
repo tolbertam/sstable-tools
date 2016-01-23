@@ -6,7 +6,7 @@ A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SST
 
 Pre compiled binary available from bintray:
 
-* [sstable-tools-3.0.0-alpha2.jar](https://bintray.com/artifact/download/tolbertam/sstable-tools/sstable-tools-3.0.0-alpha2.jar) -  Currently tested with 3.0, 3.1, 3.1.1.
+* [sstable-tools-3.0.0-alpha2.jar](https://bintray.com/artifact/download/tolbertam/sstable-tools/sstable-tools-3.0.0-alpha2.jar) -  Currently tested with 3.0, 3.1, 3.1.1, 3.2.1.
 
 Example Usage:
 
