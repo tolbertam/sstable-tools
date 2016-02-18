@@ -123,7 +123,7 @@ series of rows with columns:
 An example showing an SSTable with tombstones at all levels:
 
 A partition, its rows and its columns can also have
-[tombstones](http://docs.datastax.com/en/cassandra/2.0/cassandra/dml/dml_about_deletes_c.html)
+[tombstones](http://docs.datastax.com/en/cassandra/3.x/cassandra/dml/dmlAboutDeletes.html)
 which represent deletes.  In Cassandra 3.0, users can now delete ranges of
 rows ([CASSANDRA-6237](https://issues.apache.org/jira/browse/CASSANDRA-6237))
 which creates range tombstones.
