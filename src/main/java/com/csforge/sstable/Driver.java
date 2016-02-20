@@ -1,8 +1,5 @@
 package com.csforge.sstable;
 
-import ch.qos.logback.classic.LoggerContext;
-import org.slf4j.LoggerFactory;
-
 import java.util.Arrays;
 
 public class Driver {
@@ -11,10 +8,15 @@ public class Driver {
             printCommands();
             System.exit(-1);
         }
-        switch(args[0]) {
-            case "toJson":
+        switch(args[0].toLowerCase()) {
+            case "tojson":
                 SSTable2Json.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
+
+            case "select":
+                Query.main(Arrays.copyOfRange(args, 0, args.length));
+                break;
+
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();

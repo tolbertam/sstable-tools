@@ -19,6 +19,7 @@ see more below
 **Features:**
 
 * [sstable2json](#sstable2json) - Utility for exporting C\* 3.X SSTables into JSON.
+* [select](#select) - Make CQL queries against SSTables
 
 ## Building
 
@@ -131,4 +132,58 @@ which creates range tombstones.
 
 ```json
 TODO - update with loss of cql create option
+```
+
+## select
+
+Use the CQL parser to query the sstables directly without Cassandra or any configuration. Does not currently support ORDER_BY and DISTINCT. It will search the classpath for a ```schema.cql``` (override with ```-Dsstabletools.schema=...```) that contains the CQL ```CREATE TABLE``` statement for the schema. If it cannot find one it will fall back to a best guess from the sstable metadata. 
+
+**WARNING:** without the schema the queries become difficult for any partition/clustering columns as their names are not included in meta data yet (CASSANDRA-9587)
+
+### Usage
+
+```
+java -jar sstable-tools.jar SELECT ...
+
+usage: SELECT <column selection> FROM <sstable> WHERE <where clause>
+```
+
+
+### Examples
+
+With a schema.cql file:
+```CQL
+CREATE TABLE mykeyspace.users (
+    user_name varchar PRIMARY KEY,
+    password varchar,
+    gender varchar,
+    state varchar,
+    birth_year bigint
+);
+```
+
+An example that selects users by birth year and state
+
+```json
+java -jar sstable-tools.jar SELECT * FROM ma-2-big-Data.db WHERE birth_year >= 1985 AND state = 'CA'
+
+[
+  {
+    "partition" : {
+      "key" : [ "frodo" ]
+    },
+    "rows" : [
+      {
+        "type" : "row",
+        "liveness_info" : { "tstamp" : 1455937221199050 },
+        "cells" : [
+          { "name" : "birth_year", "value" : "1985" },
+          { "name" : "gender", "value" : "male" },
+          { "name" : "password", "value" : "pass@" },
+          { "name" : "state", "value" : "CA" }
+        ]
+      }
+    ]
+  }
+]
 ```
