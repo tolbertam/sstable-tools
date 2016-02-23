@@ -159,7 +159,7 @@ public class Query {
 
         UnfilteredPartitionIterator ret = sstable.getScanner(queriedColumns, range, false);
         ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
-        if(statement.limit != null && !selection.isAggregate()) {
+        if (statement.limit != null && !selection.isAggregate()) {
             int limit = Integer.parseInt(statement.limit.getText());
             ret = DataLimits.cqlLimits(limit).filter(sstable.getScanner(), now);
         }
@@ -170,10 +170,8 @@ public class Query {
         int now = FBUtilities.nowInSeconds();
         Selection.ResultSetBuilder result = selection.resultSetBuilder(statement.parameters.isJson);
         PartitionIterator partitions = UnfilteredPartitionIterators.filter(getScanner(), now);
-        while (partitions.hasNext())
-        {
-            try (RowIterator partition = partitions.next())
-            {
+        while (partitions.hasNext()) {
+            try (RowIterator partition = partitions.next()) {
                 processPartition(partition, OPTIONS, result, now);
             }
         }
@@ -181,45 +179,37 @@ public class Query {
     }
 
     void processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec)
-            throws InvalidRequestException
-    {
+            throws InvalidRequestException {
         int protocolVersion = options.getProtocolVersion();
 
         ByteBuffer[] keyComponents = SelectStatement.getComponents(cfm, partition.partitionKey());
 
         Row staticRow = partition.staticRow();
-        if (!partition.hasNext())
-        {
-            if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable()) && !restrictions.hasClusteringColumnsRestriction())
-            {
+        if (!partition.hasNext()) {
+            if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable()) && !restrictions.hasClusteringColumnsRestriction()) {
                 result.newRow(protocolVersion);
-                for (ColumnDefinition def : selection.getColumns())
-                {
-                    switch (def.kind)
-                    {
-                        case PARTITION_KEY:
-                            result.add(keyComponents[def.position()]);
-                            break;
-                        case STATIC:
-                            addValue(result, def, staticRow, nowInSec, protocolVersion);
-                            break;
-                        default:
-                            result.add((ByteBuffer)null);
-                    }
+            }
+            for (ColumnDefinition def : selection.getColumns()) {
+                switch (def.kind) {
+                    case PARTITION_KEY:
+                        result.add(keyComponents[def.position()]);
+                        break;
+                    case STATIC:
+                        addValue(result, def, staticRow, nowInSec, protocolVersion);
+                        break;
+                    default:
+                        result.add((ByteBuffer) null);
                 }
             }
             return;
         }
 
-        while (partition.hasNext())
-        {
+        while (partition.hasNext()) {
             Row row = partition.next();
             result.newRow(protocolVersion);
             // Respect selection order
-            for (ColumnDefinition def : selection.getColumns())
-            {
-                switch (def.kind)
-                {
+            for (ColumnDefinition def : selection.getColumns()) {
+                switch (def.kind) {
                     case PARTITION_KEY:
                         result.add(keyComponents[def.position()]);
                         break;
@@ -237,20 +227,16 @@ public class Query {
         }
     }
 
-    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, int protocolVersion)
-    {
-        if (def.isComplex())
-        {
+    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, int protocolVersion) {
+        if (def.isComplex()) {
             // Collections are the only complex types we have so far
             assert def.type.isCollection() && def.type.isMultiCell();
             ComplexColumnData complexData = row.getComplexColumnData(def);
             if (complexData == null)
-                result.add((ByteBuffer)null);
+                result.add((ByteBuffer) null);
             else
-                result.add(((CollectionType)def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
-        }
-        else
-        {
+                result.add(((CollectionType) def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
+        } else {
             result.add(row.getCell(def), nowInSec);
         }
     }
@@ -265,7 +251,7 @@ public class Query {
             CFMetaData metadata = CassandraUtils.tableFromBestSource(path);
             Query q = new Query(query, path, metadata);
 
-            if(System.getProperty("query.toJson") != null) {
+            if (System.getProperty("query.toJson") != null) {
                 Spliterator<UnfilteredRowIterator> spliterator = Spliterators.spliteratorUnknownSize(
                         q.getScanner(), Spliterator.IMMUTABLE);
                 Stream<UnfilteredRowIterator> stream = StreamSupport.stream(spliterator, false);

@@ -59,12 +59,12 @@ public class CassandraUtils {
             in = new FileInputStream(cqlPath);
         } else {
             in = Query.class.getClassLoader().getResourceAsStream("schema.cql");
-            if(in == null) {
+            if (in == null) {
                 in = new FileInputStream("schema.cql");
             }
         }
         CFMetaData metadata;
-        if(in == null) {
+        if (in == null) {
             logger.debug("Using metadata from sstable");
             metadata = CassandraUtils.tableFromSSTable(sstablePath);
         } else {
@@ -79,7 +79,7 @@ public class CassandraUtils {
         CFStatement statement = (CFStatement) QueryProcessor.parseStatement(schema);
         String keyspace = "";
         try {
-            keyspace = statement.keyspace() == null? "turtles" : statement.keyspace();
+            keyspace = statement.keyspace() == null ? "turtles" : statement.keyspace();
         } catch (AssertionError e) { // if -ea added we should provide lots of warnings that things probably wont work
             logger.warn("Remove '-ea' JVM option when using sstable-tools library");
             keyspace = "turtles";

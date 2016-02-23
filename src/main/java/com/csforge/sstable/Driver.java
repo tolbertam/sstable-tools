@@ -26,6 +26,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: toJson");
+        System.err.println("Available commands: toJson, select");
     }
 }
