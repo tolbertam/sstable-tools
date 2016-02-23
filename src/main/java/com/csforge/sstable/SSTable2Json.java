@@ -2,15 +2,13 @@ package com.csforge.sstable;
 
 import com.csforge.sstable.reader.CassandraReader;
 import com.csforge.sstable.reader.Partition;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.File;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -31,12 +29,6 @@ public class SSTable2Json {
     private static final String ENUMERATE_KEYS_OPTION = "e";
 
     static {
-        Config.setClientMode(true);
-
-        // Partitioner is not set in client mode.
-        if (DatabaseDescriptor.getPartitioner() == null)
-            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
         Option partitionKey = new Option(PARTITION_KEY_OPTION, true, "Partition key to be included.  May be used multiple times.  If not set will default to all keys.");
         partitionKey.setArgs(Option.UNLIMITED_VALUES);
 
@@ -76,14 +68,15 @@ public class SSTable2Json {
             }
         }
 
-        String sstablePath = cmd.getArgs()[0];
+        File sstablePath = new File(cmd.getArgs()[0]);
         String[] keys = cmd.getOptionValues(PARTITION_KEY_OPTION);
         HashSet<String> excludes =  new HashSet<String>(Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null?
                 new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
         boolean compact = cmd.hasOption(COMPACT_KEY_OPTION);
         try {
-            CassandraReader reader = CassandraReader.fromSSTable(sstablePath);
+            CFMetaData metadata = CassandraUtils.tableFromBestSource(sstablePath);
+            CassandraReader reader = new CassandraReader(metadata);
 
             if(enumerateKeysOnly) {
                 Stream<DecoratedKey> sstableKeys = reader.keys(sstablePath);
@@ -95,7 +88,7 @@ public class SSTable2Json {
                 JsonTransformer.toJson(partitions, reader.getMetadata(), compact, System.out);
             }
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         System.out.println();

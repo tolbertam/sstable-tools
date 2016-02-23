@@ -111,7 +111,6 @@ public final class JsonTransformer {
             } else {
                 // if not a composite type, assume a single column partition key.
                 assert metadata.partitionKeyColumns().size() == 1;
-                ColumnDefinition column = metadata.partitionKeyColumns().get(0);
                 json.writeString(keyValidator.getString(key.getKey()));
             }
             json.writeEndArray();
