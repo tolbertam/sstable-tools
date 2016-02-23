@@ -136,7 +136,7 @@ TODO - update with loss of cql create option
 
 ## select
 
-Use the CQL parser to query the sstables directly without Cassandra or any configuration. Does not currently support ORDER_BY and DISTINCT. It will search the classpath for a ```schema.cql``` (override with ```-Dsstabletools.schema=...```) that contains the CQL ```CREATE TABLE``` statement for the schema. If it cannot find one it will fall back to a best guess from the sstable metadata. 
+Use the CQL parser to query the sstables directly without Cassandra or any configuration. Does not currently support ORDER_BY and DISTINCT but all other features should work. It will search the classpath for a ```schema.cql``` (override with ```-Dsstabletools.schema=...```) that contains the CQL ```CREATE TABLE``` statement for the schema. If it cannot find one it will fall back to a best guess from the sstable metadata. The data is dumped as a result set in a data table, but to see the raw data set the ```-Dquery.toJson``` for the alternative output.
 
 **WARNING:** without the schema the queries become difficult for any partition/clustering columns as their names are not included in meta data yet (CASSANDRA-9587)
 
@@ -167,20 +167,118 @@ An example that selects users by birth year and state
 ```json
 java -jar sstable-tools.jar SELECT * FROM ma-2-big-Data.db WHERE birth_year >= 1985 AND state = 'CA'
 
+ ┌────────────┬─────────────┬─────────┬───────────┬────────┐
+ │user_name   │birth_year   │gender   │password   │state   │
+ ╞════════════╪═════════════╪═════════╪═══════════╪════════╡
+ │frodo       │1985         │male     │pass@      │CA      │
+ └────────────┴─────────────┴─────────┴───────────┴────────┘
+```
+
+Another example is given the table
+```cql
+CREATE TABLE IF NOT EXISTS test.wide ( key text, key2 text, val text, PRIMARY KEY (key, key2));
+```
+With four partitions, each with 9 rows, key2 1-9 all with the val = "X"
+```
+java -jar sstable-tools.jar SELECT * FROM ma-3-big-Data.db 
+ ┌──────┬───────┬──────┐
+ │key   │key2   │val   │
+ ╞══════╪═══════╪══════╡
+ │4     │1      │X     │
+ ├──────┼───────┼──────┤
+ │4     │2      │X     │
+ ├──────┼───────┼──────┤
+ │4     │3      │X     │
+ ├──────┼───────┼──────┤
+ │4     │4      │X     │
+ ├──────┼───────┼──────┤
+...
+
+ │1     │7      │X     │
+ ├──────┼───────┼──────┤
+ │1     │8      │X     │
+ ├──────┼───────┼──────┤
+ │1     │9      │X     │
+ └──────┴───────┴──────┘
+```
+You can perform aggregates
+
+```
+java -jar sstable-tools.jar SELECT count(*) FROM ma-3-big-Data.db 
+ ┌────────┐
+ │count   │
+ ╞════════╡
+ │36      │
+ └────────┘
+ 
+ java -jar sstable-tools.jar SELECT min(key2), max(key2) FROM ma-3-big-Data.db 
+ ┌───────────────────┬───────────────────┐
+ │system.min(key2)   │system.max(key2)   │
+ ╞═══════════════════╪═══════════════════╡
+ │1                  │9                  │
+ └───────────────────┴───────────────────┘
+```
+
+To see unfiltered data (useful for tombstone debugging) use the raw json format
+```
+java -jar -Dquery.toJson=true sstable-tools.jar SELECT * FROM ma-3-big-Data.db WHERE key2 = '1'
 [
   {
     "partition" : {
-      "key" : [ "frodo" ]
+      "key" : [ "4" ]
     },
     "rows" : [
       {
         "type" : "row",
-        "liveness_info" : { "tstamp" : 1455937221199050 },
+        "clustering" : [ "1" ],
+        "liveness_info" : { "tstamp" : 1456111364877667 },
         "cells" : [
-          { "name" : "birth_year", "value" : "1985" },
-          { "name" : "gender", "value" : "male" },
-          { "name" : "password", "value" : "pass@" },
-          { "name" : "state", "value" : "CA" }
+          { "name" : "val", "value" : "X" }
+        ]
+      }
+    ]
+  },
+  {
+    "partition" : {
+      "key" : [ "3" ]
+    },
+    "rows" : [
+      {
+        "type" : "row",
+        "clustering" : [ "1" ],
+        "liveness_info" : { "tstamp" : 1456111364856446 },
+        "cells" : [
+          { "name" : "val", "value" : "X" }
+        ]
+      }
+    ]
+  },
+  {
+    "partition" : {
+      "key" : [ "2" ]
+    },
+    "rows" : [
+      {
+        "type" : "row",
+        "clustering" : [ "1" ],
+        "liveness_info" : { "tstamp" : 1456111364834000 },
+        "cells" : [
+          { "name" : "val", "value" : "X" }
+        ]
+      }
+    ]
+  },
+  {
+    "partition" : {
+      "key" : [ "1" ]
+    },
+    "rows" : [
+      {
+        "type" : "row",
+        "clustering" : [ "1" ],
+        "liveness_info" : { "tstamp" : 1456111364803946 },
+        "cells" : [
+          { "name" : "val", "value" : "X" }
         ]
       }
     ]
