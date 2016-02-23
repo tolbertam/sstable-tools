@@ -49,7 +49,7 @@ public class SSTable2Json {
         CommandLineParser parser = new PosixParser();
         CommandLine cmd = null;
         try {
-            if(args.length == 0) {
+            if (args.length == 0) {
                 throw new ParseException("You must supply exactly one sstable.");
             }
             cmd = parser.parse(options, args);
@@ -62,7 +62,7 @@ public class SSTable2Json {
                 HelpFormatter formatter = new HelpFormatter();
                 formatter.printHelp(errWriter, 120, "toJson <sstable>",
                         System.getProperty("line.separator") + "Converts SSTable into a JSON formatted document.",
-                    options, 2, 1, "", true);
+                        options, 2, 1, "", true);
             } finally {
                 System.exit(-1);
             }
@@ -70,7 +70,7 @@ public class SSTable2Json {
 
         File sstablePath = new File(cmd.getArgs()[0]);
         String[] keys = cmd.getOptionValues(PARTITION_KEY_OPTION);
-        HashSet<String> excludes =  new HashSet<String>(Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null?
+        HashSet<String> excludes = new HashSet<String>(Arrays.asList(cmd.getOptionValues(EXCLUDE_KEY_OPTION) == null ?
                 new String[0] : cmd.getOptionValues(EXCLUDE_KEY_OPTION)));
         boolean enumerateKeysOnly = cmd.hasOption(ENUMERATE_KEYS_OPTION);
         boolean compact = cmd.hasOption(COMPACT_KEY_OPTION);
@@ -78,7 +78,7 @@ public class SSTable2Json {
             CFMetaData metadata = CassandraUtils.tableFromBestSource(sstablePath);
             CassandraReader reader = new CassandraReader(metadata);
 
-            if(enumerateKeysOnly) {
+            if (enumerateKeysOnly) {
                 Stream<DecoratedKey> sstableKeys = reader.keys(sstablePath);
                 JsonTransformer.keysToJson(sstableKeys, reader.getMetadata(), compact, System.out);
             } else {
