@@ -14,7 +14,8 @@ Example Usage:
     java -jar sstable-tools-3.0.0-alpha3.jar SELECT count(*) FROM ma-2-big-Data.db WHERE age > 30
 
 **Note:** No environment configuration is necessary for this tool to work if all components of the sstable are available but the cql create statement allows for more details.
-**Note:** CQL statements require bash escaping, future interactive mode should make this easier (#30)
+
+**Note:** CQL statements require bash escaping, future interactive mode should make this easier ([#30](https://github.com/tolbertam/sstable-tools/issues/30))
 
 
 see more below
