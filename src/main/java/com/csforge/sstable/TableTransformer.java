@@ -4,15 +4,11 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -89,6 +85,9 @@ public class TableTransformer {
 
         // data
         for (int r = 0; r < results.rows.size(); r++) {
+            if (r > 0) {
+                out.print(" ");
+            }
             List<ByteBuffer> row = results.rows.get(r);
             for (int i = 0; i < row.size(); i++) {
                 out.print(ANSI_WHITE + "│" + ANSI_RESET);
@@ -102,7 +101,6 @@ public class TableTransformer {
                 printLine('├', '─', '┤', '┼', padding, out);
             }
             out.println(ANSI_RESET);
-            out.print(" ");
         }
         out.flush();
     }

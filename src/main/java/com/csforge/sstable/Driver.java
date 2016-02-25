@@ -17,6 +17,10 @@ public class Driver {
                 Query.main(Arrays.copyOfRange(args, 0, args.length));
                 break;
 
+            case "cqlsh":
+                Cqlsh.main(Arrays.copyOfRange(args, 1, args.length));
+                break;
+
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();
@@ -26,6 +30,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: toJson, select");
+        System.err.println("Available commands: cqlsh, toJson, select");
     }
 }
