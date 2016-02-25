@@ -158,11 +158,10 @@ public class Query {
         int now = FBUtilities.nowInSeconds();
 
         UnfilteredPartitionIterator ret = sstable.getScanner(queriedColumns, range, false);
+        ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
         if (statement.limit != null && !selection.isAggregate()) {
             int limit = Integer.parseInt(statement.limit.getText());
             ret = DataLimits.cqlLimits(limit).filter(ret, now);
-        } else {
-            ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
         }
         return ret;
     }
