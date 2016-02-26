@@ -11,7 +11,7 @@ Pre compiled binary available from bintray:
 Example Usage:
 
     java -jar sstable-tools-3.0.0-alpha2.jar toJson ma-2-big-Data.db
-    java -jar sstable-tools-3.0.0-alpha3.jar SELECT count(*) FROM ma-2-big-Data.db WHERE age > 30
+    java -jar sstable-tools-3.0.0-alpha3.jar SELECT count(*) FROM ma-2-big-Data.db WHERE age > 30  (TODO: Escape this as it doesnt work as is.)
 
 **Note:** No environment configuration is necessary for this tool to work if all components of the sstable are available but the cql create statement allows for more details.
 
