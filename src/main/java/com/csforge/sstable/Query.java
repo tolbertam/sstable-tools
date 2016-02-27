@@ -1,6 +1,7 @@
 package com.csforge.sstable;
 
 import com.csforge.sstable.reader.Partition;
+import com.google.common.collect.Lists;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -36,6 +37,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -53,9 +55,9 @@ public class Query {
     public final CFMetaData cfm;
     public final Selection selection;
     public final ColumnFilter queriedColumns;
-    public final File path;
+    public final Collection<File> path;
 
-    public Query(String query, File path, CFMetaData cfm) throws IllegalAccessException, NoSuchFieldException, IOException {
+    public Query(String query, Collection<File> path, CFMetaData cfm) throws IllegalAccessException, NoSuchFieldException, IOException {
         SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(query);
         if (!statement.parameters.orderings.isEmpty()) {
             throw new UnsupportedOperationException("ORDER BY not supported");
@@ -153,11 +155,14 @@ public class Query {
 
     public UnfilteredPartitionIterator getScanner() throws IOException {
         DataRange range = new DataRange(restrictions.getPartitionKeyBounds(OPTIONS), makeClusteringIndexFilter());
-        Descriptor desc = Descriptor.fromFilename(path.getAbsolutePath());
-        SSTableReader sstable = SSTableReader.openNoValidation(desc, cfm);
+        List<SSTableReader> readers = Lists.newArrayList();
+        for(File f : path) {
+            Descriptor desc = Descriptor.fromFilename(f.getAbsolutePath());
+            readers.add(SSTableReader.openNoValidation(desc, cfm));
+        }
         int now = FBUtilities.nowInSeconds();
-
-        UnfilteredPartitionIterator ret = sstable.getScanner(queriedColumns, range, false);
+        List<UnfilteredPartitionIterator> all = readers.stream().map(r -> r.getScanner(queriedColumns, range, false)).collect(Collectors.toList());
+        UnfilteredPartitionIterator ret = UnfilteredPartitionIterators.mergeLazily(all, now);
         ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
         if (statement.limit != null && !selection.isAggregate()) {
             int limit = Integer.parseInt(statement.limit.getText());
@@ -249,7 +254,7 @@ public class Query {
             // The column family name in this case is the sstable file path.
             File path = new File(statement.columnFamily());
             CFMetaData metadata = CassandraUtils.tableFromBestSource(path);
-            Query q = new Query(query, path, metadata);
+            Query q = new Query(query, Collections.singleton(path), metadata);
 
             if (System.getProperty("query.toJson") != null) {
                 Spliterator<UnfilteredRowIterator> spliterator = Spliterators.spliteratorUnknownSize(

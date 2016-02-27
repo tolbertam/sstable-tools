@@ -48,7 +48,7 @@ public class TableTransformer {
     }
 
     public static void dumpResults(CFMetaData cfm, ResultSet results, PrintStream out) throws Exception {
-
+        if(results.rows.isEmpty()) return; // empty
         // find spacing
         int[] padding = new int[results.rows.get(0).size()];
         for (int i = 0; i < results.rows.get(0).size(); i++) {
