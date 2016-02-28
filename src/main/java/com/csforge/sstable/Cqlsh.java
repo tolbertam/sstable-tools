@@ -5,6 +5,10 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.io.Resources;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
+import com.typesafe.config.ConfigRenderOptions;
+import com.typesafe.config.ConfigValueFactory;
 import jline.console.ConsoleReader;
 import jline.console.UserInterruptException;
 import jline.console.completer.FileNameCompleter;
@@ -25,8 +29,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -68,8 +74,57 @@ public class Cqlsh {
 
     private static final String FAILED_TO_IMPORT_SCHEMA = errorMsg("Could not import schema from '%s': %s.%n");
 
+    private static final String PERSISTENCE_NOTE = infoMsg("To not persist settings, use PERSIST OFF.");
+
+    private static final String PREFERENCES_ARE_DISABLED = "Preferences are currently disabled.";
+
+    private static final String PREFERENCES_ARE_ENABLED = "Preferences are currently enabled:%n%s";
+
+    private static final String PREFERENCES_ALREADY_ENABLED = errorMsg("Preferences are already enabled.  Using PERSIST OFF to disable.");
+
+    private static final String PREFERENCES_ALREADY_DISABLED = errorMsg("Preferences are not enabled.");
+
+    private static final String PREFERENCES_ENABLED = "Now Preferences are enabled:%n%s";
+
+    private static final String PREFERENCES_DISABLED = "Disabled Preferences.";
+
+    private static final String DISABLING_SCHEMA = "Disabling user-defined schema and using sstable metadata instead.";
+
+    private static final String USER_DEFINED_SCHEMA = "User-defined schema is:%n%s%n";
+
+    private static final String NO_USER_DEFINED_SCHEMA = "No user-defined schema, using sstable metadata instead.";
+
+    private static final File CONFIG_DIR = new File(System.getProperty("user.home"), ".sstable-tools");
+
+    private static final File HISTORY_FILE = new File(CONFIG_DIR, ".history");
+
+    private static final File PREFERENCES_FILE = new File(CONFIG_DIR, ".preferences.conf");
+
+    private static final String PROP_SSTABLES = "sstables";
+
+    private static final String PROP_SCHEMA = "schema";
+
+    private static final String PROP_PAGING_ENABLED = "pagingEnabled";
+
+    private static final String PROP_PAGING_SIZE = "pagingSize";
+
+    private static final String PROP_PREFERENCES_ENABLED = "preferencesEnabled";
+
+    static {
+        if (!CONFIG_DIR.exists()) {
+            boolean created = CONFIG_DIR.mkdirs();
+            if (!created) {
+                System.err.println("Failed to create preferences directory: " + CONFIG_DIR);
+            }
+        }
+    }
+
     static String errorMsg(String msg) {
         return TableTransformer.ANSI_RED + msg + TableTransformer.ANSI_RESET;
+    }
+
+    static String infoMsg(String msg) {
+        return TableTransformer.ANSI_CYAN + msg + TableTransformer.ANSI_RESET;
     }
 
     static {
@@ -80,7 +135,7 @@ public class Cqlsh {
         options.addOption(fileOption);
     }
 
-    public List<File> sstables = Lists.newArrayList();
+    public Set<File> sstables = Sets.newHashSet();
     public FileHistory history = null;
     private final String prompt = "\u001B[1;33mcqlsh\u001B[33m> \u001B[0m";
     public CFMetaData metadata = null;
@@ -90,12 +145,42 @@ public class Cqlsh {
     String innerBuffer;
     boolean inner = false;
     boolean paging = true;
-    // TODO: Make configurable?
     int pageSize = 100;
+    boolean preferences = true;
+    Config config;
 
     public Cqlsh() {
         try {
-            history = new FileHistory(new File(System.getProperty("user.home"), ".sstable-tools-cqlsh"));
+            Config applicationConfig = ConfigFactory.defaultApplication();
+            config = ConfigFactory.parseFile(PREFERENCES_FILE).withFallback(applicationConfig);
+            paging = config.getBoolean(PROP_PAGING_ENABLED);
+            pageSize = config.getInt(PROP_PAGING_SIZE);
+            sstables = config.getStringList(PROP_SSTABLES).stream().map(File::new).filter(f -> {
+                if (!f.exists()) {
+                    System.err.printf(CANNOT_FIND_FILE, f.getAbsolutePath());
+                }
+                return f.exists();
+            }).collect(Collectors.toSet());
+
+            boolean persistInfo = false;
+            if (sstables.size() > 0) {
+                System.out.println(infoMsg("Using previously defined sstables: " + sstables));
+                persistInfo = true;
+            }
+
+            preferences = config.getBoolean(PROP_PREFERENCES_ENABLED);
+            String schema = config.getString(PROP_SCHEMA);
+            if (!Strings.isNullOrEmpty(schema)) {
+                System.out.printf(infoMsg("Using previously defined schema:%n%s%n"), schema);
+                persistInfo = true;
+                CassandraUtils.cqlOverride = schema;
+            }
+
+            if (persistInfo) {
+                System.out.println(PERSISTENCE_NOTE);
+            }
+
+            history = new FileHistory(HISTORY_FILE);
             console = new ConsoleReader();
             console.setPrompt(prompt);
             console.setHistory(history);
@@ -126,7 +211,7 @@ public class Cqlsh {
         String rest = command.substring(4); // "USE "
         Pattern p = Pattern.compile("((\"[^\"]+\")|[^\" ]+)");
         Matcher m = p.matcher(rest);
-        this.sstables = Lists.newArrayList();
+        this.sstables = Sets.newHashSet();
 
         while (m.find()) {
             String arg = m.group().replace("\"", "");
@@ -161,29 +246,42 @@ public class Cqlsh {
             System.out.println("Using: " + f.getAbsolutePath());
         }
         if (!sstables.isEmpty()) {
-            metadata = CassandraUtils.tableFromBestSource(sstables.get(0));
+            metadata = CassandraUtils.tableFromBestSource(sstables.iterator().next());
         }
     }
 
     public void doSchema(String command) throws Exception {
-        String path = command.substring(7).trim().replaceAll("\"", "");
-        File schemaFile = new File(path);
-        if (!schemaFile.exists()) {
-            System.err.printf(CANNOT_FIND_FILE, schemaFile.getAbsolutePath());
+        String path = command.substring(6).trim().replaceAll("\"", "");
+
+        if (path.equalsIgnoreCase("off")) {
+            System.out.println(DISABLING_SCHEMA);
+            CassandraUtils.cqlOverride = null;
+        } else if (Strings.isNullOrEmpty(path)) {
+            if (!Strings.isNullOrEmpty(CassandraUtils.cqlOverride)) {
+                System.out.printf(USER_DEFINED_SCHEMA, CassandraUtils.cqlOverride);
+            } else {
+                System.out.println(NO_USER_DEFINED_SCHEMA);
+            }
         } else {
-            String cql = new String(Files.readAllBytes(schemaFile.toPath()));
-            try {
-                ParsedStatement statement = QueryProcessor.parseStatement(cql);
-                if (statement instanceof CreateTableStatement.RawStatement) {
-                    CassandraUtils.cqlOverride = cql;
-                    System.out.printf(IMPORTED_SCHEMA, schemaFile.getAbsolutePath());
-                } else {
-                    System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), "Wrong type of statement, " + statement.getClass());
+            File schemaFile = new File(path);
+            if (!schemaFile.exists()) {
+                System.err.printf(CANNOT_FIND_FILE, schemaFile.getAbsolutePath());
+            } else {
+                String cql = new String(Files.readAllBytes(schemaFile.toPath()));
+                try {
+                    ParsedStatement statement = QueryProcessor.parseStatement(cql);
+                    if (statement instanceof CreateTableStatement.RawStatement) {
+                        CassandraUtils.cqlOverride = cql;
+                        System.out.printf(IMPORTED_SCHEMA, schemaFile.getAbsolutePath());
+                    } else {
+                        System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), "Wrong type of statement, " + statement.getClass());
+                    }
+                } catch (SyntaxException se) {
+                    System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), se.getMessage());
                 }
-            } catch (SyntaxException se) {
-                System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), se.getMessage());
             }
         }
+
     }
 
     public void doDump(String command) throws Exception {
@@ -209,11 +307,9 @@ public class Cqlsh {
                     "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
                             partition.staticRow().toString(metadata, true));
             }
-            partition.forEachRemaining(row -> {
-                System.out.println(
-                        "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
-                                row.toString(metadata, true));
-            });
+            partition.forEachRemaining(row -> System.out.println(
+                    "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
+                            row.toString(metadata, true)));
         });
         System.out.println();
     }
@@ -307,11 +403,6 @@ public class Cqlsh {
 
     public void doPagingConfig(String command) throws Exception {
         String mode = command.substring(6).trim().toLowerCase();
-        // trim all semicolons.
-        while (mode.endsWith(";")) {
-            mode = mode.substring(0, mode.length());
-        }
-        mode = mode.trim();
         switch (mode) {
             case "":
                 if (paging) {
@@ -347,14 +438,43 @@ public class Cqlsh {
         }
     }
 
+    public void doPersistConfig(String command) {
+        String mode = command.substring(7).trim().toLowerCase();
+
+        switch (mode) {
+            case "":
+                if (preferences) {
+                    System.out.printf(PREFERENCES_ARE_ENABLED, generatePreferencesConfigString(false));
+                } else {
+                    System.out.println(PREFERENCES_ARE_DISABLED);
+                }
+                break;
+            case "on":
+                if (preferences) {
+                    System.err.println(PREFERENCES_ALREADY_ENABLED);
+                } else {
+                    preferences = true;
+                    System.out.printf(PREFERENCES_ENABLED, generatePreferencesConfigString(false));
+                }
+                break;
+            case "off":
+                if (preferences) {
+                    preferences = false;
+                    System.out.println(PREFERENCES_DISABLED);
+                } else {
+                    System.err.println(PREFERENCES_ALREADY_DISABLED);
+                }
+                break;
+        }
+    }
+
     public Query getQuery(String command) throws Exception {
         SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(command);
-        Query query;
         if (statement.columnFamily().matches("sstables?")) {
             if(sstables.isEmpty()) {
                 return null;
             }
-            metadata = CassandraUtils.tableFromBestSource(sstables.get(0));
+            metadata = CassandraUtils.tableFromBestSource(sstables.iterator().next());
             return new Query(command, sstables, metadata);
         } else {
             File path = new File(statement.columnFamily());
@@ -411,6 +531,9 @@ public class Cqlsh {
                     System.exit(-5);
                 }
                 continue;
+            } else if (command.toLowerCase().startsWith("persist")) {
+                doPersistConfig(command);
+                continue;
             } else if (command.length() >= 6) {
                 String queryType = command.substring(0, 6).toLowerCase();
                 switch (queryType) {
@@ -436,6 +559,39 @@ public class Cqlsh {
             }
             System.err.format("%sUnknown command: %s%s%n", TableTransformer.ANSI_RED, command,
                     TableTransformer.ANSI_RESET);
+        }
+    }
+
+
+    public Config generatePreferencesConfig() {
+        Config persistConfig;
+
+        if (preferences) {
+            persistConfig = this.config
+                    .withValue(PROP_SSTABLES, ConfigValueFactory.fromIterable(sstables.stream().map(File::getAbsolutePath).collect(Collectors.toSet())))
+                    .withValue(PROP_PAGING_ENABLED, ConfigValueFactory.fromAnyRef(paging))
+                    .withValue(PROP_PAGING_SIZE, ConfigValueFactory.fromAnyRef(pageSize))
+                    .withValue(PROP_PREFERENCES_ENABLED, ConfigValueFactory.fromAnyRef(preferences))
+                    .withValue(PROP_SCHEMA, ConfigValueFactory.fromAnyRef(CassandraUtils.cqlOverride != null ? CassandraUtils.cqlOverride : ""));
+        } else {
+            persistConfig = ConfigFactory.empty()
+                    .withValue(PROP_PREFERENCES_ENABLED, ConfigValueFactory.fromAnyRef(preferences));
+        }
+
+        return persistConfig;
+    }
+
+    public String generatePreferencesConfigString(boolean json) {
+        return generatePreferencesConfig().root().render(ConfigRenderOptions.defaults().setJson(json).setOriginComments(false));
+    }
+
+    public void persistState() {
+        String contents = generatePreferencesConfigString(true);
+        try {
+            Files.write(Paths.get(PREFERENCES_FILE.getAbsolutePath()), contents.getBytes());
+        } catch (IOException e) {
+            System.err.printf(errorMsg("Failed writing preferences file '%s': %s%n"),
+                    PREFERENCES_FILE.getAbsolutePath(), e.getMessage());
         }
     }
 
@@ -484,6 +640,7 @@ public class Cqlsh {
             @Override
             public void run() {
                 try {
+                    sh.persistState();
                     sh.history.flush();
                 } catch (IOException e) {
                     System.err.println("Couldn't flush history on shutdown.  Reason:" + e.getMessage());
@@ -515,10 +672,6 @@ public class Cqlsh {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-            }
-            try {
-                sh.history.flush();
-            } catch (IOException e) {
             }
             sh.console.shutdown();
         }

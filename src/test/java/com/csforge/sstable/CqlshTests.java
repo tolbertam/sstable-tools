@@ -17,7 +17,7 @@ public class CqlshTests {
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         sh.metadata = cfdata;
         sh.doUse("USE " + path.getAbsolutePath() + " \"ban ana\"");
-        Assert.assertEquals(path.getAbsoluteFile(), sh.sstables.get(0));
+        Assert.assertEquals(path.getAbsoluteFile(), sh.sstables.iterator().next());
         Assert.assertEquals(1, sh.sstables.size());
     }
 
