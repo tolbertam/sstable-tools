@@ -45,6 +45,7 @@ public class Cqlsh {
     private static final String SCHEMA_OPTION = "s";
 
     private static final String FILE_OPTION = "f";
+
     private static final String MISSING_SSTABLES = errorMsg("No sstables set. Set the sstables using the 'USE pathToSSTable' command.");
 
     private static final String QUERY_PAGING_ALREADY_ENABLED = errorMsg("Query paging is already enabled. Use PAGING OFF to disable.");
@@ -60,6 +61,12 @@ public class Cqlsh {
     private static final String PAGING_IS_ENABLED = "Query paging is currently enabled. Use PAGING OFF to disable%nPage size: %d%n";
 
     private static final String PAGING_IS_DISABLED = "Query paging is currently disabled. Use PAGING ON to enable.";
+
+    private static final String CANNOT_FIND_FILE = errorMsg("Cannot find '%s'.%n");
+
+    private static final String IMPORTED_SCHEMA = "Successfully imported schema from '%s'.%n";
+
+    private static final String FAILED_TO_IMPORT_SCHEMA = errorMsg("Could not import schema from '%s': %s.%n");
 
     static String errorMsg(String msg) {
         return TableTransformer.ANSI_RED + msg + TableTransformer.ANSI_RESET;
@@ -143,7 +150,7 @@ public class Cqlsh {
                             }
                         });
                     } else {
-                        System.out.println("Cannot find " + sstable.getAbsolutePath());
+                        System.err.printf(CANNOT_FIND_FILE, sstable.getAbsolutePath());
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -155,6 +162,27 @@ public class Cqlsh {
         }
         if (!sstables.isEmpty()) {
             metadata = CassandraUtils.tableFromBestSource(sstables.get(0));
+        }
+    }
+
+    public void doSchema(String command) throws Exception {
+        String path = command.substring(7).trim().replaceAll("\"", "");
+        File schemaFile = new File(path);
+        if (!schemaFile.exists()) {
+            System.err.printf(CANNOT_FIND_FILE, schemaFile.getAbsolutePath());
+        } else {
+            String cql = new String(Files.readAllBytes(schemaFile.toPath()));
+            try {
+                ParsedStatement statement = QueryProcessor.parseStatement(cql);
+                if (statement instanceof CreateTableStatement.RawStatement) {
+                    CassandraUtils.cqlOverride = cql;
+                    System.out.printf(IMPORTED_SCHEMA, schemaFile.getAbsolutePath());
+                } else {
+                    System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), "Wrong type of statement, " + statement.getClass());
+                }
+            } catch (SyntaxException se) {
+                System.err.printf(FAILED_TO_IMPORT_SCHEMA, schemaFile.getAbsoluteFile(), se.getMessage());
+            }
         }
     }
 
@@ -400,6 +428,9 @@ public class Cqlsh {
                         continue;
                     case "paging":
                         doPagingConfig(command);
+                        continue;
+                    case "schema":
+                        doSchema(command);
                         continue;
                 }
             }

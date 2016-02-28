@@ -6,6 +6,8 @@ CREATE TABLE ...  - A CREATE TABLE cql statement to use as metadata when reading
 DESCRIBE SCHEMA   - Show currently used schema (or serialized cfmetadata if generated)
 DESCRIBE SSTABLES - Provide details and statistics on current sstable(s)
 PAGING [(ON|OFF)] - Enables, disables, or shows current status of query paging.
+PAGING <SIZE>     - Enables paging and sets paging size.
+SCHEMA <FILE>     - Imports a cql file as the active table schema.
 USE               - update the sstable[s] used by default with select, dump, describe commands
     USE /var/lib/cassandra/data/system/peers/ma-1-big-Data.db
     or with multiple sstables separated with spaces. This can also be a directory which will add all sstables in it.
