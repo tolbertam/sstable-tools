@@ -2,12 +2,10 @@ package com.csforge.sstable;
 
 import com.csforge.sstable.reader.CassandraReader;
 import com.csforge.sstable.reader.Partition;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.MinMaxPriorityQueue;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.io.CharStreams;
 import com.google.common.io.Files;
 import org.apache.cassandra.config.CFMetaData;
@@ -34,6 +32,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.joda.time.Duration;
 import org.joda.time.Period;
@@ -50,9 +50,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
+import java.util.function.BiConsumer;
+import java.util.stream.*;
 
 public class CassandraUtils {
     private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
@@ -363,11 +362,28 @@ public class CassandraUtils {
                 out.printf("%stotalRows%s:%s %s%n", c, s, r, stats.totalRows);
                 out.printf("%sEstimated tombstone drop times%s:%s%n", c, s, r);
 
-                for (Map.Entry<Double, Long> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
-                {
-                    out.printf("  %-10s %s:%10s%n", entry.getKey().intValue(),
-                            toDateString(entry.getKey().intValue(), TimeUnit.SECONDS, color), entry.getValue());
-                }
+                TermHistogram h = new TermHistogram(stats.estimatedTombstoneDropTime.getAsMap().entrySet());
+                String bcolor = color? "\u001B[36m" : "";
+                String reset = color? "\u001B[0m" : "";
+                String histoColor = color? "\u001B[37m" : "";
+                out.printf("%s  %-" + h.maxValueLength + "s                       | %-"+h.maxCountLength+"s   %%   Histogram %n", bcolor, "Value", "Count");
+                stats.estimatedTombstoneDropTime.getAsMap().entrySet().stream().forEach(e -> {
+                    String histo = h.asciiHistogram(e.getValue(), 30);
+                    out.printf(reset +
+                            "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
+                            e.getKey().longValue(), toDateString(e.getKey().intValue(),TimeUnit.SECONDS, color),
+                            bcolor, reset,
+                            e.getValue(),
+                            wrapQuiet(String.format("%3s", (int) (100 * (e.getValue()/h.sum))), color),
+                            histoColor,
+                            histo);
+                });
+
+                out.printf("%sEstimated partition size%s:%s%n", c, s, r);
+                TermHistogram.printHistogram(stats.estimatedPartitionSize, out, color);
+
+                out.printf("%sEstimated column count%s:%s%n", c, s, r);
+                TermHistogram.printHistogram(stats.estimatedColumnCount, out, color);
             }
             if (compaction != null)
             {
@@ -397,6 +413,85 @@ public class CassandraUtils {
                 out.printf("%sRegularColumns%s:%s {%s}%n", c, s, r, FBUtilities.toString(regulars));
             }
         }
-
     }
+
+    public static final TreeMap<Double, String> bars = new TreeMap<Double, String>(){{
+        this.put(1.0,     "█"); // full block
+        this.put(7.0/8.0, "▉"); // 7/8ths left block
+        this.put(3.0/4.0, "▊"); // 3/4th block
+        this.put(5.0/8.0, "▋"); // five eighths
+        this.put(0.5,     "▌");
+        this.put(3.0/8.0, "▍"); // three eighths
+        this.put(1.0/4.0, "▎");
+        this.put(1.0/8.0, "▏");
+    }};
+
+    private static class TermHistogram {
+        long max;
+        long min;
+        double sum;
+        int maxCountLength = 5;
+        int maxValueLength = 5;
+
+        public static void printHistogram(EstimatedHistogram histogram, PrintStream out, boolean colors) {
+            String bcolor = colors? "\u001B[36m" : "";
+            String reset = colors? "\u001B[0m" : "";
+            String histoColor = colors? "\u001B[37m" : "";
+
+            TermHistogram h = new TermHistogram(histogram);
+            out.printf("%s  %-" + h.maxValueLength + "s                       | %-"+h.maxCountLength+"s   %%   Histogram %n", bcolor, "Value", "Count");
+            long[] counts = histogram.getBuckets(false);
+            long[] offsets = histogram.getBucketOffsets();
+            for(int i = 0; i < counts.length ; i++) {
+                if (counts[i] > 0) {
+                    String histo = h.asciiHistogram(counts[i], 30);
+                    out.printf(reset +
+                                    "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
+                            offsets[i], toDateString(offsets[i], TimeUnit.SECONDS, true),
+                            bcolor,reset,
+                            counts[i],
+                            wrapQuiet(String.format("%3s", (int) (100 * ((double) counts[i] / h.sum))), true),
+                            histoColor,
+                            histo);
+                }
+            }
+        }
+
+        public TermHistogram(Collection<Map.Entry<Double, Long>> histogram) {
+            histogram.stream().forEach(e -> {
+                max = Math.max(max, e.getValue());
+                min = Math.min(min, e.getValue());
+                sum += e.getValue();
+                maxCountLength = Math.max(maxCountLength, (""+e.getValue()).length());
+                maxValueLength = Math.max(maxValueLength, (""+e.getKey().longValue()).length());
+            });
+        }
+
+        public TermHistogram(EstimatedHistogram histogram) {
+            long[] counts = histogram.getBuckets(false);
+            for (int i = 0; i < counts.length; i ++) {
+                long e = counts[i];
+                if(e > 0 ) {
+                    max = Math.max(max, e);
+                    min = Math.min(min, e);
+                    sum += e;
+                    maxCountLength = Math.max(maxCountLength, ("" + e).length());
+                    maxValueLength = Math.max(maxValueLength, ("" + histogram.getBucketOffsets()[i]).length());
+                }
+            }
+        }
+
+        public String asciiHistogram(long count, int length) {
+            StringBuilder sb = new StringBuilder();
+            long barVal = count;
+            int intWidth = (int) (barVal * 1.0 / max * length);
+            double remainderWidth = (barVal * 1.0 / max * length) - intWidth;
+            sb.append(Strings.repeat("█", intWidth));
+            if(bars.floorKey(remainderWidth) != null) {
+                sb.append("" + bars.get(bars.floorKey(remainderWidth)));
+            }
+            return sb.toString();
+        }
+    }
+
 }
