@@ -101,6 +101,20 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>1.4.0</version>
+        <configuration>
+          <mainClass>com.csforge.sstable.Driver</mainClass>
+          <arguments>
+            <argument>
+              cqlsh
+            </argument>
+          </arguments>
+          <cleanupDaemonThreads>false</cleanupDaemonThreads>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
   <profiles>

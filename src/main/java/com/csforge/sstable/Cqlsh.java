@@ -45,9 +45,25 @@ public class Cqlsh {
     private static final String SCHEMA_OPTION = "s";
 
     private static final String FILE_OPTION = "f";
-    private static final String MISSING_SSTABLES = TableTransformer.ANSI_RED +
-            "No sstables set. Set the sstables using the 'USE pathToSSTable' command." +
-            TableTransformer.ANSI_RESET;
+    private static final String MISSING_SSTABLES = errorMsg("No sstables set. Set the sstables using the 'USE pathToSSTable' command.");
+
+    private static final String QUERY_PAGING_ALREADY_ENABLED = errorMsg("Query paging is already enabled. Use PAGING OFF to disable.");
+
+    private static final String QUERY_PAGING_ALREADY_DISABLED = errorMsg("Query paging is not enabled.");
+
+    private static final String IMPROPER_PAGING_COMMAND = errorMsg("Improper PAGING command.");
+
+    private static final String QUERY_PAGING_ENABLED = "Now Query paging is enabled%nPage size: %d%n";
+
+    private static final String QUERY_PAGING_DISABLED = "Disabled Query paging.";
+
+    private static final String PAGING_IS_ENABLED = "Query paging is currently enabled. Use PAGING OFF to disable%nPage size: %d%n";
+
+    private static final String PAGING_IS_DISABLED = "Query paging is currently disabled. Use PAGING ON to enable.";
+
+    static String errorMsg(String msg) {
+        return TableTransformer.ANSI_RED + msg + TableTransformer.ANSI_RESET;
+    }
 
     static {
         Option schemaOption = new Option(SCHEMA_OPTION, true, "Schema file to use.");
@@ -66,6 +82,9 @@ public class Cqlsh {
 
     String innerBuffer;
     boolean inner = false;
+    boolean paging = true;
+    // TODO: Make configurable?
+    int pageSize = 100;
 
     public Cqlsh() {
         try {
@@ -171,6 +190,48 @@ public class Cqlsh {
         System.out.println();
     }
 
+    public void doQuery(String command) throws Exception {
+        Query q = getQuery(command);
+        System.out.println();
+        if (q == null) {
+            System.out.println(MISSING_SSTABLES);
+        } else if (paging) {
+            ResultSetData resultData = getQuery(command).getResults(pageSize);
+            TableTransformer.dumpResults(metadata, resultData.getResultSet(), System.out);
+            boolean terminated = false;
+            if (resultData.getPagingData().hasMorePages()) {
+                console.setHistoryEnabled(false);
+                console.setPrompt("");
+                while (resultData.getPagingData().hasMorePages()) {
+                    System.out.printf("%n---MORE---");
+                    try {
+                        String input = console.readLine();
+                        if (input == null) {
+                            done = true;
+                            terminated = true;
+                            break;
+                        }
+                    } catch (UserInterruptException uie) {
+                        // User interrupted, stop paging.
+                        terminated = true;
+                        break;
+                    }
+                    resultData = getQuery(command).getResults(pageSize, resultData.getPagingData());
+                    TableTransformer.dumpResults(metadata, resultData.getResultSet(), System.out);
+                }
+            }
+            if (!terminated) {
+                System.out.printf("%n(%s rows)%n", resultData.getPagingData().getRowCount());
+            }
+            console.setPrompt(prompt);
+            console.setHistoryEnabled(true);
+        } else {
+            ResultSetData resultData = getQuery(command).getResults();
+            TableTransformer.dumpResults(metadata, resultData.getResultSet(), System.out);
+            System.out.printf("%n(%s rows)%n", resultData.getPagingData().getRowCount());
+        }
+    }
+
     public void doCreate(String command) throws Exception {
         innerBuffer = command;
         inner = true;
@@ -216,6 +277,42 @@ public class Cqlsh {
         }
     }
 
+    public void doPagingConfig(String command) throws Exception {
+        String mode = command.substring(6).trim().toLowerCase();
+        // trim all semicolons.
+        while (mode.endsWith(";")) {
+            mode = mode.substring(0, mode.length());
+        }
+        mode = mode.trim();
+        switch (mode) {
+            case "":
+                if (paging) {
+                    System.out.printf(PAGING_IS_ENABLED, pageSize);
+                } else {
+                    System.out.println(PAGING_IS_DISABLED);
+                }
+                break;
+            case "on":
+                if (paging) {
+                    System.err.println(QUERY_PAGING_ALREADY_ENABLED);
+                } else {
+                    paging = true;
+                    System.out.printf(QUERY_PAGING_ENABLED, pageSize);
+                }
+                break;
+            case "off":
+                if (!paging) {
+                    System.err.println(QUERY_PAGING_ALREADY_DISABLED);
+                } else {
+                    paging = false;
+                    System.out.println(QUERY_PAGING_DISABLED);
+                }
+                break;
+            default:
+                System.err.println(IMPROPER_PAGING_COMMAND);
+        }
+    }
+
     public Query getQuery(String command) throws Exception {
         SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(command);
         Query query;
@@ -240,7 +337,9 @@ public class Cqlsh {
         String cmds[] = line.split(";");
         for (String command : cmds) {
             command = command.trim();
-            if (command.equals("exit") || command.equals("quit")) {
+            if (command.isEmpty()) {
+                continue;
+            } else if (command.equals("exit") || command.equals("quit")) {
                 done = true;
                 continue;
             } else if (command.toLowerCase().trim().startsWith("describe schema")) {
@@ -282,12 +381,7 @@ public class Cqlsh {
                 String queryType = command.substring(0, 6).toLowerCase();
                 switch (queryType) {
                     case "select":
-                        Query q = getQuery(command);
-                        if(q == null) {
-                            System.out.println(MISSING_SSTABLES);
-                        } else {
-                            TableTransformer.dumpResults(metadata, getQuery(command).getResults(), System.out);
-                        }
+                        doQuery(command);
                         continue;
                     case "create":
                         doCreate(command);
@@ -297,6 +391,9 @@ public class Cqlsh {
                     case "delete":
                         System.err.format("%sQuery '%s' is not supported since this tool is read-only.%s%n",
                                 TableTransformer.ANSI_RED, command, TableTransformer.ANSI_RESET);
+                        continue;
+                    case "paging":
+                        doPagingConfig(command);
                         continue;
                 }
             }

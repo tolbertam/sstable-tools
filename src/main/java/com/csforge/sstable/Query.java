@@ -1,22 +1,19 @@
 package com.csforge.sstable;
 
 import com.csforge.sstable.reader.Partition;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.StatementType;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.Slice;
-import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -26,6 +23,8 @@ import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -37,6 +36,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -154,36 +154,87 @@ public class Query {
     }
 
     public UnfilteredPartitionIterator getScanner() throws IOException {
-        DataRange range = new DataRange(restrictions.getPartitionKeyBounds(OPTIONS), makeClusteringIndexFilter());
+        return getScanner(Integer.MAX_VALUE, new PagingData());
+    }
+
+    public UnfilteredPartitionIterator getScanner(int pageSize, PagingData pagingData) throws IOException {
+        Preconditions.checkNotNull(pagingData);
+        AbstractBounds<PartitionPosition> bounds = restrictions.getPartitionKeyBounds(OPTIONS);
+        DataRange range = new DataRange(bounds, makeClusteringIndexFilter());
+        final DataRange pageRange;
+        if (pagingData.hasMorePages()) {
+            pageRange = range.forPaging(new Bounds<>(pagingData.getPartitionKey(), bounds.right),
+                    cfm.comparator, pagingData.getClustering(), false);
+        } else {
+            pageRange = range;
+        }
         List<SSTableReader> readers = Lists.newArrayList();
-        for(File f : path) {
+        for (File f : path) {
             Descriptor desc = Descriptor.fromFilename(f.getAbsolutePath());
             readers.add(SSTableReader.openNoValidation(desc, cfm));
         }
         int now = FBUtilities.nowInSeconds();
-        List<UnfilteredPartitionIterator> all = readers.stream().map(r -> r.getScanner(queriedColumns, range, false)).collect(Collectors.toList());
+        List<UnfilteredPartitionIterator> all = readers.stream().map(r -> r.getScanner(queriedColumns, pageRange, false)).collect(Collectors.toList());
         UnfilteredPartitionIterator ret = UnfilteredPartitionIterators.mergeLazily(all, now);
         ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
         if (statement.limit != null && !selection.isAggregate()) {
             int limit = Integer.parseInt(statement.limit.getText());
-            ret = DataLimits.cqlLimits(limit).filter(ret, now);
+            DataLimits limits = DataLimits.cqlLimits(limit);
+            if (pageSize != Integer.MAX_VALUE) {
+                if (pagingData.hasMorePages()) {
+                    limits = limits.forPaging(pageSize, pagingData.getPartitionKey().getKey(), limit - pagingData.getRowCount());
+                } else {
+                    limits = limits.forPaging(pageSize);
+                }
+            }
+            ret = limits.filter(ret, now);
         }
         return ret;
     }
 
-    public ResultSet getResults() throws IOException {
-        int now = FBUtilities.nowInSeconds();
-        Selection.ResultSetBuilder result = selection.resultSetBuilder(statement.parameters.isJson);
-        PartitionIterator partitions = UnfilteredPartitionIterators.filter(getScanner(), now);
-        while (partitions.hasNext()) {
-            try (RowIterator partition = partitions.next()) {
-                processPartition(partition, OPTIONS, result, now);
-            }
-        }
-        return result.build(OPTIONS.getProtocolVersion());
+    public ResultSetData getResults() throws IOException {
+        return getResults(Integer.MAX_VALUE);
     }
 
-    void processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec)
+    public ResultSetData getResults(int pageSize) throws IOException {
+        return getResults(pageSize, new PagingData());
+    }
+
+    public ResultSetData getResults(int pageSize, PagingData pagingData) throws IOException {
+        Preconditions.checkNotNull(pagingData);
+        int now = FBUtilities.nowInSeconds();
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(statement.parameters.isJson);
+        PartitionIterator partitions = UnfilteredPartitionIterators.filter(getScanner(pageSize, pagingData), now);
+        AtomicInteger rowsPaged = new AtomicInteger(0);
+        Clustering newClustering = null;
+        DecoratedKey newPartitionKey = null;
+
+        int limit = statement.limit != null && !selection.isAggregate() ? Integer.parseInt(statement.limit.getText()) : Integer.MAX_VALUE;
+
+        int rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
+        while (rowsThusFar < limit && partitions.hasNext()) {
+            try (RowIterator partition = partitions.next()) {
+                newPartitionKey = partition.partitionKey();
+                // Remaining is the min of how many the requested page size - how many pages
+                // - or - the limit minus rows read overall.
+                newClustering = processPartition(partition, OPTIONS, result, now, Math.min(pageSize - rowsPaged.get(), limit - rowsThusFar), rowsPaged);
+                rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
+                if (newClustering != null) {
+                    break;
+                }
+            }
+        }
+
+        // Stop paging when we hit limit.
+        if (rowsThusFar >= limit) {
+            newClustering = null;
+        }
+
+        PagingData newPagingData = new PagingData(newPartitionKey, newClustering, rowsThusFar);
+        return new ResultSetData(result.build(OPTIONS.getProtocolVersion()), newPagingData);
+    }
+
+    Clustering processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec, int remaining, AtomicInteger rowsPaged)
             throws InvalidRequestException {
         int protocolVersion = options.getProtocolVersion();
 
@@ -206,10 +257,10 @@ public class Query {
                         result.add((ByteBuffer) null);
                 }
             }
-            return;
+            return null;
         }
 
-        while (partition.hasNext()) {
+        while (remaining-- > 0 && partition.hasNext()) {
             Row row = partition.next();
             result.newRow(protocolVersion);
             // Respect selection order
@@ -229,7 +280,12 @@ public class Query {
                         break;
                 }
             }
+            rowsPaged.incrementAndGet();
+            if (remaining <= 0) {
+                return row.clustering();
+            }
         }
+        return null;
     }
 
     private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, int protocolVersion) {
@@ -262,7 +318,7 @@ public class Query {
                 Stream<UnfilteredRowIterator> stream = StreamSupport.stream(spliterator, false);
                 JsonTransformer.toJson(stream.map(Partition::new), q.cfm, false, System.out);
             } else {
-                TableTransformer.dumpResults(metadata, q.getResults(), System.out);
+                TableTransformer.dumpResults(metadata, q.getResults().getResultSet(), System.out);
             }
         } catch (Exception e) {
             e.printStackTrace();

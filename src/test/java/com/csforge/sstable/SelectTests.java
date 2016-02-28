@@ -71,7 +71,7 @@ public class SelectTests {
         String query = String.format("SELECT count(*) FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);
-        ResultSet result = q.getResults();
+        ResultSet result = q.getResults().getResultSet();
         Assert.assertEquals(1, result.rows.size());
         Assert.assertEquals("count", result.metadata.names.get(0).name.toString());
     }
@@ -82,7 +82,7 @@ public class SelectTests {
         String query = String.format("SELECT * FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL4.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);
-        ResultSet result = q.getResults();
+        ResultSet result = q.getResults().getResultSet();
         Assert.assertEquals(1, result.rows.size());
         TableTransformer.dumpResults(cfdata, result, System.out);
 
