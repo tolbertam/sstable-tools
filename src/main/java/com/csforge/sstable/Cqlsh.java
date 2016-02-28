@@ -309,7 +309,13 @@ public class Cqlsh {
                 }
                 break;
             default:
-                System.err.println(IMPROPER_PAGING_COMMAND);
+                try {
+                    pageSize = Integer.parseInt(mode);
+                    paging = true;
+                    System.out.printf(QUERY_PAGING_ENABLED, pageSize);
+                } catch (NumberFormatException e) {
+                    System.err.println(IMPROPER_PAGING_COMMAND);
+                }
         }
     }
 
