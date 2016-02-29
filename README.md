@@ -158,8 +158,8 @@ DUMP               - dump the raw unfiltered partitions/rows. Useful for debugin
 
 ## describe
 
-Provides information about an sstable's data and its metadata.
-
+Provides information about an sstable's data and its metadata. Can be used as argument or via cqlsh.
+![describe](http://imgur.com/sSZuwDs.gif)
 Example Output:
 
 ```
