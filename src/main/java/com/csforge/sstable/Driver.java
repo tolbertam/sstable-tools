@@ -2,7 +2,7 @@ package com.csforge.sstable;
 
 import com.google.common.base.Strings;
 
-import java.io.IOException;
+import java.io.File;
 import java.util.Arrays;
 
 public class Driver {
@@ -25,7 +25,7 @@ public class Driver {
                 break;
 
             case "describe":
-                String path = args[1];
+                String path = new File(args[1]).getAbsolutePath();
                 try {
                     System.out.println("\u001B[1;34m" + path);
                     System.out.println(TableTransformer.ANSI_CYAN + Strings.repeat("=", path.length()));
