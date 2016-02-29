@@ -30,7 +30,7 @@ public class Driver {
                     System.out.println("\u001B[1;34m" + path);
                     System.out.println(TableTransformer.ANSI_CYAN + Strings.repeat("=", path.length()));
                     System.out.print(TableTransformer.ANSI_RESET);
-                    CassandraUtils.printStats(path, System.out, true);
+                    CassandraUtils.printStats(path, System.out);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

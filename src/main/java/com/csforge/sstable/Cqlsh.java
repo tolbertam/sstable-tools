@@ -11,7 +11,7 @@ import com.typesafe.config.ConfigRenderOptions;
 import com.typesafe.config.ConfigValueFactory;
 import jline.console.ConsoleReader;
 import jline.console.UserInterruptException;
-import jline.console.completer.FileNameCompleter;
+import jline.console.completer.*;
 import jline.console.history.FileHistory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -26,10 +26,7 @@ import org.apache.commons.cli.*;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
-import java.util.List;
-import java.util.Scanner;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -185,13 +182,54 @@ public class Cqlsh {
             console.setPrompt(prompt);
             console.setHistory(history);
             console.setHistoryEnabled(true);
-            console.addCompleter(new FileNameCompleter());
+            List<Completer> completers = Lists.newArrayList();
+
+            ArgumentCompleter argCompleter = new ArgumentCompleter(
+                    caselessCompleter("use", "schema"),
+                    new FileNameCompleter()
+            );
+            completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("describe"),
+                    caselessCompleter("sstables", "schema")
+            );
+            completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("dump"),
+                    caselessCompleter("where")
+            );
+            completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("create"),
+                    caselessCompleter("table")
+            );
+            completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("paging"),
+                    caselessCompleter("on", "off")
+            );
+            completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("persist"),
+                    caselessCompleter("on", "off")
+            );
+            completers.add(argCompleter);
+            completers.add(caselessCompleter("exit", "help", "select"));
+            for(Completer c : completers) {
+                console.addCompleter(c);
+            }
             console.setHandleUserInterrupt(true);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private static AggregateCompleter caselessCompleter(String ... args) {
+        return new AggregateCompleter(
+                new StringsCompleter(Arrays.stream(args).map(String::toUpperCase).collect(Collectors.toList())),
+                new StringsCompleter(Arrays.stream(args).map(String::toLowerCase).collect(Collectors.toList()))
+        );
+    }
     public void startShell() throws Exception {
         try {
             String line = null;
@@ -325,11 +363,9 @@ public class Cqlsh {
             boolean terminated = false;
             if (resultData.getPagingData().hasMorePages()) {
                 console.setHistoryEnabled(false);
-                console.setPrompt("");
                 while (resultData.getPagingData().hasMorePages()) {
-                    System.out.printf("%n---MORE---");
                     try {
-                        String input = console.readLine();
+                        String input = console.readLine("\n---MORE---", ' ');
                         if (input == null) {
                             done = true;
                             terminated = true;
@@ -347,7 +383,6 @@ public class Cqlsh {
             if (!terminated) {
                 System.out.printf("%n(%s rows)%n", resultData.getPagingData().getRowCount());
             }
-            console.setPrompt(prompt);
             console.setHistoryEnabled(true);
         } else {
             ResultSetData resultData = getQuery(command).getResults();
@@ -513,7 +548,7 @@ public class Cqlsh {
                     System.out.println(TableTransformer.ANSI_CYAN +
                             Strings.repeat("=", f.getAbsolutePath().length()) +
                             TableTransformer.ANSI_RESET);
-                    CassandraUtils.printStats(f.getAbsolutePath(), System.out, true);
+                    CassandraUtils.printStats(f.getAbsolutePath(), System.out, console);
                     System.out.println();
                 }
                 continue;

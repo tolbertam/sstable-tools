@@ -8,6 +8,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.*;
 import com.google.common.io.CharStreams;
 import com.google.common.io.Files;
+import jline.console.ConsoleReader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -218,13 +219,17 @@ public class CassandraUtils {
         }
     }
     private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
-
-    public static void printStats(String fname, PrintStream out, boolean color) throws IOException, NoSuchFieldException, IllegalAccessException {
+    public static void printStats(String fname, PrintStream out) throws IOException, NoSuchFieldException, IllegalAccessException {
+        printStats(fname, out, null);
+    }
+    public static void printStats(String fname, PrintStream out, ConsoleReader console) throws IOException, NoSuchFieldException, IllegalAccessException {
+        boolean color = console == null || console.getTerminal().isAnsiSupported();
         String c = color? TableTransformer.ANSI_BLUE : "";
         String s = color? TableTransformer.ANSI_CYAN : "";
         String r = color? TableTransformer.ANSI_RESET : "";
         if (new File(fname).exists())
         {
+            // TODO use "◐ ◓ ◑ ◒" while reading
             Descriptor descriptor = Descriptor.fromFilename(fname);
             CFMetaData cfm = tableFromBestSource(new File(fname));
             SSTableReader reader = SSTableReader.openNoValidation(descriptor, cfm);
@@ -271,11 +276,9 @@ public class CassandraUtils {
                             Row row = (Row) unfiltered;
                             psize += row.dataSize();
                             pcount++;
-                            Iterator<Cell> cells = row.cells().iterator();
-                            while(cells.hasNext()) {
-                                Cell cell = cells.next();
+                            for (Cell cell : row.cells()) {
                                 cellCount++;
-                                if(cell.isTombstone()) {
+                                if (cell.isTombstone()) {
                                     tombstoneCount++;
                                     ptombcount++;
                                 }
