@@ -69,26 +69,29 @@ public class CassandraUtils {
 
     public static CFMetaData tableFromBestSource(File sstablePath) throws IOException, NoSuchFieldException, IllegalAccessException {
         // TODO add CQL/Thrift mechanisms as well
-        String cqlPath = System.getProperty("sstabletools.schema");
-        InputStream in;
-        if (!Strings.isNullOrEmpty(cqlPath)) {
-            in = new FileInputStream(cqlPath);
-        } else {
-            in = Query.class.getClassLoader().getResourceAsStream("schema.cql");
-            if (in == null && new File("schema.cql").exists()) {
-                in = new FileInputStream("schema.cql");
-            }
-        }
+
         CFMetaData metadata;
         if (cqlOverride != null) {
             logger.debug("Using override metadata");
             metadata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(cqlOverride.getBytes()));
-        } else if (in == null) {
-            logger.debug("Using metadata from sstable");
-            metadata = CassandraUtils.tableFromSSTable(sstablePath);
         } else {
-            logger.debug("Using metadata from CQL schema in " + cqlPath);
-            metadata = CassandraUtils.tableFromCQL(in);
+            String cqlPath = System.getProperty("sstabletools.schema");
+            InputStream in;
+            if (!Strings.isNullOrEmpty(cqlPath)) {
+                in = new FileInputStream(cqlPath);
+            } else {
+                in = Query.class.getClassLoader().getResourceAsStream("schema.cql");
+                if (in == null && new File("schema.cql").exists()) {
+                    in = new FileInputStream("schema.cql");
+                }
+            }
+            if (in == null) {
+                logger.debug("Using metadata from sstable");
+                metadata = CassandraUtils.tableFromSSTable(sstablePath);
+            } else {
+                logger.debug("Using metadata from CQL schema in " + cqlPath);
+                metadata = CassandraUtils.tableFromCQL(in);
+            }
         }
         return metadata;
     }
