@@ -41,6 +41,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: cqlsh, toJson, select, describe");
+        System.err.println("Available commands: cqlsh, toJson, describe");
     }
 }
