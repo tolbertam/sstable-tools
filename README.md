@@ -240,7 +240,7 @@ Estimated partition size:
   1629722   |     4 (  0)  
   186563160|     1 (  0)  
 Estimated column count:
-  Value                         | Count   %   Histogram 
+  Value    | Count   %   Histogram 
   10       |    41 (  0) ▎ 
   12       |    39 (  0) ▎ 
   14       |    32 (  0) ▎ 
