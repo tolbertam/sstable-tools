@@ -19,6 +19,8 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.CreateTypeStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.commons.cli.*;
@@ -27,10 +29,11 @@ import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * This is just an early hacking - proof of concept (don't judge)
@@ -333,23 +336,68 @@ public class Cqlsh {
         } else {
             query = getQuery("select * from sstables");
         }
-        Stream<UnfilteredRowIterator> partitions = CassandraUtils.asStream(query.getScanner());
 
-        partitions.forEach(partition -> {
-            if(!partition.partitionLevelDeletion().isLive()) {
-                System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
-                        partition.partitionLevelDeletion());
+        console.setHistoryEnabled(false);
+        AtomicInteger totalRows = new AtomicInteger(0);
+        try (UnfilteredPartitionIterator scanner = query.getScanner()) {
+            int limit = Integer.MAX_VALUE;
+            if (query.statement.limit != null && !query.selection.isAggregate()) {
+                limit = Integer.parseInt(query.statement.limit.getText());
             }
-            if (!partition.staticRow().isEmpty()) {
-                System.out.println(
-                    "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
-                            partition.staticRow().toString(metadata, true));
+            AtomicInteger rowsPaged = new AtomicInteger(0);
+            Function<Void, Void> deferToInput = o -> {
+                if (paging && rowsPaged.get() >= pageSize) {
+                    rowsPaged.set(0);
+                    try {
+                        String input = console.readLine("\n---MORE---", ' ');
+                        if (input == null) {
+                            totalRows.set(Integer.MAX_VALUE);
+                        }
+                    } catch (UserInterruptException uie) {
+                        // User interrupted, stop paging.
+                        totalRows.set(Integer.MAX_VALUE);
+                    } catch (IOException e) {
+                        System.err.println(errorMsg("Error while paging:" + e.getMessage()));
+                    }
+                }
+                return null;
+            };
+
+            while (scanner.hasNext() && totalRows.get() < limit) {
+                UnfilteredRowIterator partition = scanner.next();
+                deferToInput.apply(null);
+                if (!partition.partitionLevelDeletion().isLive() && totalRows.get() < limit) {
+                    System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
+                            partition.partitionLevelDeletion());
+                    rowsPaged.incrementAndGet();
+                    totalRows.incrementAndGet();
+                }
+                deferToInput.apply(null);
+                if (!partition.staticRow().isEmpty() && totalRows.get() < limit) {
+                    System.out.println(
+                            "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
+                                    partition.staticRow().toString(metadata, true));
+                    rowsPaged.incrementAndGet();
+                    totalRows.incrementAndGet();
+                }
+                deferToInput.apply(null);
+                while (partition.hasNext() && totalRows.get() < limit) {
+                    Unfiltered row = partition.next();
+                    System.out.println(
+                            "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
+                                    row.toString(metadata, true));
+                    rowsPaged.incrementAndGet();
+                    totalRows.incrementAndGet();
+                    deferToInput.apply(null);
+                }
             }
-            partition.forEachRemaining(row -> System.out.println(
-                    "[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "] " +
-                            row.toString(metadata, true)));
-        });
-        System.out.println();
+        } finally {
+            if (totalRows.get() < Integer.MAX_VALUE) {
+                System.out.printf("%n(%s rows)%n", totalRows.get());
+            }
+            console.setHistoryEnabled(true);
+            console.setPrompt(prompt);
+        }
     }
 
     public void doQuery(String command) throws Exception {
@@ -384,6 +432,7 @@ public class Cqlsh {
                 System.out.printf("%n(%s rows)%n", resultData.getPagingData().getRowCount());
             }
             console.setHistoryEnabled(true);
+            console.setPrompt(prompt);
         } else {
             ResultSetData resultData = getQuery(command).getResults();
             TableTransformer.dumpResults(metadata, resultData.getResultSet(), System.out);

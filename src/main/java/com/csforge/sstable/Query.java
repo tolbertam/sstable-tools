@@ -204,34 +204,36 @@ public class Query {
         Preconditions.checkNotNull(pagingData);
         int now = FBUtilities.nowInSeconds();
         Selection.ResultSetBuilder result = selection.resultSetBuilder(statement.parameters.isJson);
-        PartitionIterator partitions = UnfilteredPartitionIterators.filter(getScanner(pageSize, pagingData), now);
-        AtomicInteger rowsPaged = new AtomicInteger(0);
-        Clustering newClustering = null;
-        DecoratedKey newPartitionKey = null;
+        try (UnfilteredPartitionIterator scanner = getScanner(pageSize, pagingData)) {
+            PartitionIterator partitions = UnfilteredPartitionIterators.filter(scanner, now);
+            AtomicInteger rowsPaged = new AtomicInteger(0);
+            Clustering newClustering = null;
+            DecoratedKey newPartitionKey = null;
 
-        int limit = statement.limit != null && !selection.isAggregate() ? Integer.parseInt(statement.limit.getText()) : Integer.MAX_VALUE;
+            int limit = statement.limit != null && !selection.isAggregate() ? Integer.parseInt(statement.limit.getText()) : Integer.MAX_VALUE;
 
-        int rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
-        while (rowsThusFar < limit && partitions.hasNext()) {
-            try (RowIterator partition = partitions.next()) {
-                newPartitionKey = partition.partitionKey();
-                // Remaining is the min of how many the requested page size - how many pages
-                // - or - the limit minus rows read overall.
-                newClustering = processPartition(partition, OPTIONS, result, now, Math.min(pageSize - rowsPaged.get(), limit - rowsThusFar), rowsPaged);
-                rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
-                if (newClustering != null) {
-                    break;
+            int rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
+            while (rowsThusFar < limit && partitions.hasNext()) {
+                try (RowIterator partition = partitions.next()) {
+                    newPartitionKey = partition.partitionKey();
+                    // Remaining is the min of how many the requested page size - how many pages
+                    // - or - the limit minus rows read overall.
+                    newClustering = processPartition(partition, OPTIONS, result, now, Math.min(pageSize - rowsPaged.get(), limit - rowsThusFar), rowsPaged);
+                    rowsThusFar = pagingData.getRowCount() + rowsPaged.get();
+                    if (newClustering != null) {
+                        break;
+                    }
                 }
             }
-        }
 
-        // Stop paging when we hit limit.
-        if (rowsThusFar >= limit) {
-            newClustering = null;
-        }
+            // Stop paging when we hit limit.
+            if (rowsThusFar >= limit) {
+                newClustering = null;
+            }
 
-        PagingData newPagingData = new PagingData(newPartitionKey, newClustering, rowsThusFar);
-        return new ResultSetData(result.build(OPTIONS.getProtocolVersion()), newPagingData);
+            PagingData newPagingData = new PagingData(newPartitionKey, newClustering, rowsThusFar);
+            return new ResultSetData(result.build(OPTIONS.getProtocolVersion()), newPagingData);
+        }
     }
 
     Clustering processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec, int remaining, AtomicInteger rowsPaged)
