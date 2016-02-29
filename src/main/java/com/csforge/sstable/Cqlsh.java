@@ -35,11 +35,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.csforge.sstable.TableTransformer.*;
+
 /**
  * This is just an early hacking - proof of concept (don't judge)
- *
+ * <p/>
  * - TODO : REWRITE EVERYTHING FROM SCRATCH
- *
+ * <p/>
  * - TODO : UDTs, and UDFs
  * - TODO : EXPAND ON; like cqlsh for wide rows/tiny consoles
  * - TODO : File completer on sstable use/select
@@ -120,11 +122,11 @@ public class Cqlsh {
     }
 
     static String errorMsg(String msg) {
-        return TableTransformer.ANSI_RED + msg + TableTransformer.ANSI_RESET;
+        return ANSI_RED + msg + ANSI_RESET;
     }
 
     static String infoMsg(String msg) {
-        return TableTransformer.ANSI_CYAN + msg + TableTransformer.ANSI_RESET;
+        return ANSI_CYAN + msg + ANSI_RESET;
     }
 
     static {
@@ -188,7 +190,7 @@ public class Cqlsh {
             List<Completer> completers = Lists.newArrayList();
 
             ArgumentCompleter argCompleter = new ArgumentCompleter(
-                    caselessCompleter("use", "schema"),
+                    caselessCompleter("use"),
                     new FileNameCompleter()
             );
             completers.add(argCompleter);
@@ -217,8 +219,13 @@ public class Cqlsh {
                     caselessCompleter("on", "off")
             );
             completers.add(argCompleter);
+            argCompleter = new ArgumentCompleter(
+                    caselessCompleter("schema"),
+                    new AggregateCompleter(new FileNameCompleter(), caselessCompleter("on", "off"))
+            );
+            completers.add(argCompleter);
             completers.add(caselessCompleter("exit", "help", "select"));
-            for(Completer c : completers) {
+            for (Completer c : completers) {
                 console.addCompleter(c);
             }
             console.setHandleUserInterrupt(true);
@@ -227,12 +234,13 @@ public class Cqlsh {
         }
     }
 
-    private static AggregateCompleter caselessCompleter(String ... args) {
+    private static AggregateCompleter caselessCompleter(String... args) {
         return new AggregateCompleter(
                 new StringsCompleter(Arrays.stream(args).map(String::toUpperCase).collect(Collectors.toList())),
                 new StringsCompleter(Arrays.stream(args).map(String::toLowerCase).collect(Collectors.toList()))
         );
     }
+
     public void startShell() throws Exception {
         try {
             String line = null;
@@ -326,7 +334,7 @@ public class Cqlsh {
     }
 
     public void doDump(String command) throws Exception {
-        if(sstables.isEmpty()) {
+        if (sstables.isEmpty()) {
             System.out.println(MISSING_SSTABLES);
             return;
         }
@@ -473,7 +481,7 @@ public class Cqlsh {
                         }
                     } else {
                         inner = false;
-                        System.out.println(TableTransformer.ANSI_RED + e.getMessage() + TableTransformer.ANSI_RESET);
+                        System.out.println(ANSI_RED + e.getMessage() + ANSI_RESET);
                     }
                 }
             }
@@ -555,7 +563,7 @@ public class Cqlsh {
     public Query getQuery(String command) throws Exception {
         SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(command);
         if (statement.columnFamily().matches("sstables?")) {
-            if(sstables.isEmpty()) {
+            if (sstables.isEmpty()) {
                 return null;
             }
             metadata = CassandraUtils.tableFromBestSource(sstables.iterator().next());
@@ -581,22 +589,20 @@ public class Cqlsh {
                 done = true;
                 continue;
             } else if (command.toLowerCase().trim().startsWith("describe schema")) {
-                if(CassandraUtils.cqlOverride != null) {
+                if (CassandraUtils.cqlOverride != null) {
                     System.out.println(CassandraUtils.cqlOverride);
                 } else if (metadata != null) {
                     System.out.println(metadata);
                 } else {
                     System.err.format("%sNo current metadata set, use a CREATE TABLE statement to set%s%n",
-                            TableTransformer.ANSI_RED, TableTransformer.ANSI_RESET);
+                            ANSI_RED, ANSI_RESET);
                 }
                 continue;
             } else if (command.toLowerCase().trim().startsWith("describe sstable")) {
                 System.out.println();
-                for(File f : sstables) {
+                for (File f : sstables) {
                     System.out.println("\u001B[1;34m" + f.getAbsolutePath());
-                    System.out.println(TableTransformer.ANSI_CYAN +
-                            Strings.repeat("=", f.getAbsolutePath().length()) +
-                            TableTransformer.ANSI_RESET);
+                    System.out.println(ANSI_CYAN + Strings.repeat("=", f.getAbsolutePath().length()) + ANSI_RESET);
                     CassandraUtils.printStats(f.getAbsolutePath(), System.out, console);
                     System.out.println();
                 }
@@ -631,7 +637,7 @@ public class Cqlsh {
                     case "insert":
                     case "delete":
                         System.err.format("%sQuery '%s' is not supported since this tool is read-only.%s%n",
-                                TableTransformer.ANSI_RED, command, TableTransformer.ANSI_RESET);
+                                ANSI_RED, command, ANSI_RESET);
                         continue;
                     case "paging":
                         doPagingConfig(command);
@@ -641,8 +647,7 @@ public class Cqlsh {
                         continue;
                 }
             }
-            System.err.format("%sUnknown command: %s%s%n", TableTransformer.ANSI_RED, command,
-                    TableTransformer.ANSI_RESET);
+            System.err.format("%sUnknown command: %s%s%n", ANSI_RED, command, ANSI_RESET);
         }
     }
 
@@ -685,8 +690,7 @@ public class Cqlsh {
         try {
             cmd = parser.parse(options, args);
         } catch (ParseException e) {
-            System.err.format("%sFailure parsing arguments: %s%s%n%n", TableTransformer.ANSI_RED, e.getMessage(),
-                    TableTransformer.ANSI_RESET);
+            System.err.format("%sFailure parsing arguments: %s%s%n%n", ANSI_RED, e.getMessage(), ANSI_RESET);
             try (PrintWriter errWriter = new PrintWriter(System.err, true)) {
                 HelpFormatter formatter = new HelpFormatter();
                 formatter.printHelp(errWriter, 120, "cqlsh sstable [sstable ...]",
@@ -753,6 +757,12 @@ public class Cqlsh {
                 try {
                     sh.startShell();
                 } catch (UserInterruptException e) {
+                } catch (RuntimeException e) {
+                    if (e.getMessage().startsWith("Unknown column")) {
+                        System.out.printf("%sUnknown Column. Likely the schema is not correct for this sstable. Try '%sSCHEMA OFF%s' to use metadata from statistics.%s%n", ANSI_RED, "\u001B[1;31m", "\u001B[0;31m", ANSI_RESET);
+                    } else {
+                        e.printStackTrace();
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

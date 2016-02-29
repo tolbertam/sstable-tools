@@ -1,13 +1,10 @@
 package com.csforge.sstable;
 
-import com.csforge.sstable.reader.CassandraReader;
-import com.csforge.sstable.reader.Partition;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import com.google.common.collect.*;
+import com.google.common.collect.Maps;
+import com.google.common.collect.MinMaxPriorityQueue;
 import com.google.common.io.CharStreams;
-import com.google.common.io.Files;
 import jline.console.ConsoleReader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
@@ -21,7 +18,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -31,14 +27,10 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.*;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
-import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.joda.time.Duration;
-import org.joda.time.Period;
-import org.joda.time.ReadableDuration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,8 +43,9 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.stream.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class CassandraUtils {
     private static final Logger logger = LoggerFactory.getLogger(CassandraUtils.class);
@@ -87,7 +80,7 @@ public class CassandraUtils {
             }
         }
         CFMetaData metadata;
-        if (cqlOverride != null){
+        if (cqlOverride != null) {
             logger.debug("Using override metadata");
             metadata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(cqlOverride.getBytes()));
         } else if (in == null) {
@@ -101,7 +94,7 @@ public class CassandraUtils {
     }
 
     private static Types getTypes() {
-        if(knownTypes.isEmpty()) {
+        if (knownTypes.isEmpty()) {
             return Types.none();
         } else {
             return Types.of(knownTypes.values().toArray(new UserType[0]));
@@ -174,27 +167,27 @@ public class CassandraUtils {
         return metaData;
     }
 
-    public static <T> Stream<T> asStream(Iterator<T> iter)
-    {
+    public static <T> Stream<T> asStream(Iterator<T> iter) {
         Spliterator<T> splititer = Spliterators.spliteratorUnknownSize(iter, Spliterator.IMMUTABLE);
         return StreamSupport.stream(splititer, false);
     }
 
     public static String wrapQuiet(String toWrap, boolean color) {
         StringBuilder sb = new StringBuilder();
-        if(color) {
+        if (color) {
             sb.append(TableTransformer.ANSI_WHITE);
         }
         sb.append("(");
         sb.append(toWrap);
         sb.append(")");
-        if(color) {
+        if (color) {
             sb.append(TableTransformer.ANSI_RESET);
         }
         return sb.toString();
     }
+
     public static String toDateString(long time, TimeUnit unit, boolean color) {
-        return wrapQuiet(new java.text.SimpleDateFormat("MM/dd/yyyy HH:mm:ss").format(new java.util.Date (unit.toMillis(time))), color);
+        return wrapQuiet(new java.text.SimpleDateFormat("MM/dd/yyyy HH:mm:ss").format(new java.util.Date(unit.toMillis(time))), color);
     }
 
     public static String toDurationString(long duration, TimeUnit unit, boolean color) {
@@ -205,32 +198,36 @@ public class CassandraUtils {
         int unit = si ? 1000 : 1024;
         if (bytes < unit) return bytes + " B";
         int exp = (int) (Math.log(bytes) / Math.log(unit));
-        String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp-1) + (si ? "" : "i");
+        String pre = (si ? "kMGTPE" : "KMGTPE").charAt(exp - 1) + (si ? "" : "i");
         return wrapQuiet(String.format("%.1f %sB", bytes / Math.pow(unit, exp), pre), color);
     }
 
     private static class ValuedByteBuffer {
         public long value;
         public ByteBuffer buffer;
+
         public ValuedByteBuffer(ByteBuffer buffer, long value) {
             this.value = value;
             this.buffer = buffer;
         }
+
         public long getValue() {
             return value;
         }
     }
+
     private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
+
     public static void printStats(String fname, PrintStream out) throws IOException, NoSuchFieldException, IllegalAccessException {
         printStats(fname, out, null);
     }
+
     public static void printStats(String fname, PrintStream out, ConsoleReader console) throws IOException, NoSuchFieldException, IllegalAccessException {
         boolean color = console == null || console.getTerminal().isAnsiSupported();
-        String c = color? TableTransformer.ANSI_BLUE : "";
-        String s = color? TableTransformer.ANSI_CYAN : "";
-        String r = color? TableTransformer.ANSI_RESET : "";
-        if (new File(fname).exists())
-        {
+        String c = color ? TableTransformer.ANSI_BLUE : "";
+        String s = color ? TableTransformer.ANSI_CYAN : "";
+        String r = color ? TableTransformer.ANSI_RESET : "";
+        if (new File(fname).exists()) {
             Descriptor descriptor = Descriptor.fromFilename(fname);
 
             Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
@@ -265,25 +262,25 @@ public class CassandraUtils {
             long cellCount = 0;
             double totalCells = stats.totalColumnsSet;
             int lastPercent = 0;
-            while(scanner.hasNext()) {
+            while (scanner.hasNext()) {
                 UnfilteredRowIterator partition = scanner.next();
 
                 long psize = 0;
                 long pcount = 0;
                 int ptombcount = 0;
-                partitionCount ++;
-                if(!partition.staticRow().isEmpty()) {
-                    rowCount ++;
+                partitionCount++;
+                if (!partition.staticRow().isEmpty()) {
+                    rowCount++;
                     pcount++;
                     psize += partition.staticRow().dataSize();
                 }
-                if(!partition.partitionLevelDeletion().isLive()) {
-                    tombstoneCount ++;
+                if (!partition.partitionLevelDeletion().isLive()) {
+                    tombstoneCount++;
                     ptombcount++;
                 }
-                while(partition.hasNext()) {
+                while (partition.hasNext()) {
                     Unfiltered unfiltered = partition.next();
-                    switch(unfiltered.kind()) {
+                    switch (unfiltered.kind()) {
                         case ROW:
                             rowCount++;
                             Row row = (Row) unfiltered;
@@ -291,10 +288,10 @@ public class CassandraUtils {
                             pcount++;
                             for (Cell cell : row.cells()) {
                                 cellCount++;
-                                double percentComplete = Math.min(1.0, cellCount /  totalCells);
-                                if(lastPercent != (int) (percentComplete * 100)) {
+                                double percentComplete = Math.min(1.0, cellCount / totalCells);
+                                if (lastPercent != (int) (percentComplete * 100)) {
                                     lastPercent = (int) (percentComplete * 100);
-                                    int cols = (int) (percentComplete *  30);
+                                    int cols = (int) (percentComplete * 30);
                                     System.out.printf("\r%sAnalyzing SSTable...  %s%s%s %s(%%%s)", c, s, FULL_BAR.substring(30 - cols), EMPTY_BAR.substring(cols), r, (int) (percentComplete * 100));
                                     System.out.flush();
                                 }
@@ -303,11 +300,11 @@ public class CassandraUtils {
                                     ptombcount++;
                                 }
                             }
-                        break;
+                            break;
                         case RANGE_TOMBSTONE_MARKER:
                             tombstoneCount++;
                             ptombcount++;
-                        break;
+                            break;
                     }
                 }
                 widestPartitions.add(new ValuedByteBuffer(partition.partitionKey().getKey(), pcount));
@@ -329,19 +326,17 @@ public class CassandraUtils {
             });
             out.printf("%sTombstone Leaders%s:%s%n", c, s, r);
             asStream(mostTombstones.iterator()).sorted(VCOMP).forEach(p -> {
-                if(p.value > 0) {
+                if (p.value > 0) {
                     out.printf("%s   [%s%s%s]%s %s%n", s, r, cfm.getKeyValidator().getString(p.buffer), s, r, p.value);
                 }
             });
 
             List<AbstractType<?>> clusteringTypes = (List<AbstractType<?>>) readPrivate(header, "clusteringTypes");
-            if (validation != null)
-            {
+            if (validation != null) {
                 out.printf("%sPartitioner%s:%s %s%n", c, s, r, validation.partitioner);
                 out.printf("%sBloom Filter FP chance%s:%s %f%n", c, s, r, validation.bloomFilterFPChance);
             }
-            if (stats != null)
-            {
+            if (stats != null) {
                 out.printf("%sSize%s:%s %s %s %n", c, s, r, bytes, toByteString(bytes, true, color));
                 out.printf("%sCompressor%s:%s %s%n", c, s, r, compression != null ? compression.compressor().getClass().getName() : "-");
                 if (compression != null)
@@ -355,14 +350,12 @@ public class CassandraUtils {
 
                 out.printf("%sTTL min%s:%s %s %s%n", c, s, r, stats.minTTL, toDurationString(stats.minTTL, TimeUnit.SECONDS, color));
                 out.printf("%sTTL max%s:%s %s %s%n", c, s, r, stats.maxTTL, toDurationString(stats.maxTTL, TimeUnit.SECONDS, color));
-                if (header != null && clusteringTypes.size() == stats.minClusteringValues.size())
-                {
+                if (header != null && clusteringTypes.size() == stats.minClusteringValues.size()) {
                     List<ByteBuffer> minClusteringValues = stats.minClusteringValues;
                     List<ByteBuffer> maxClusteringValues = stats.maxClusteringValues;
                     String[] minValues = new String[clusteringTypes.size()];
                     String[] maxValues = new String[clusteringTypes.size()];
-                    for (int i = 0; i < clusteringTypes.size(); i++)
-                    {
+                    for (int i = 0; i < clusteringTypes.size(); i++) {
                         minValues[i] = clusteringTypes.get(i).getString(minClusteringValues.get(i));
                         maxValues[i] = clusteringTypes.get(i).getString(maxClusteringValues.get(i));
                     }
@@ -378,18 +371,18 @@ public class CassandraUtils {
                 out.printf("%sEstimated tombstone drop times%s:%s%n", c, s, r);
 
                 TermHistogram h = new TermHistogram(stats.estimatedTombstoneDropTime.getAsMap().entrySet());
-                String bcolor = color? "\u001B[36m" : "";
-                String reset = color? "\u001B[0m" : "";
-                String histoColor = color? "\u001B[37m" : "";
-                out.printf("%s  %-" + h.maxValueLength + "s                       | %-"+h.maxCountLength+"s   %%   Histogram %n", bcolor, "Value", "Count");
+                String bcolor = color ? "\u001B[36m" : "";
+                String reset = color ? "\u001B[0m" : "";
+                String histoColor = color ? "\u001B[37m" : "";
+                out.printf("%s  %-" + h.maxValueLength + "s                       | %-" + h.maxCountLength + "s   %%   Histogram %n", bcolor, "Value", "Count");
                 stats.estimatedTombstoneDropTime.getAsMap().entrySet().stream().forEach(e -> {
                     String histo = h.asciiHistogram(e.getValue(), 30);
                     out.printf(reset +
-                            "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
-                            e.getKey().longValue(), toDateString(e.getKey().intValue(),TimeUnit.SECONDS, color),
+                                    "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
+                            e.getKey().longValue(), toDateString(e.getKey().intValue(), TimeUnit.SECONDS, color),
                             bcolor, reset,
                             e.getValue(),
-                            wrapQuiet(String.format("%3s", (int) (100 * (e.getValue()/h.sum))), color),
+                            wrapQuiet(String.format("%3s", (int) (100 * (e.getValue() / h.sum))), color),
                             histoColor,
                             histo);
                 });
@@ -400,12 +393,10 @@ public class CassandraUtils {
                 out.printf("%sEstimated column count%s:%s%n", c, s, r);
                 TermHistogram.printHistogram(stats.estimatedColumnCount, out, color);
             }
-            if (compaction != null)
-            {
+            if (compaction != null) {
                 out.printf("%sEstimated cardinality%s:%s %s%n", c, s, r, compaction.cardinalityEstimator.cardinality());
             }
-            if (header != null)
-            {
+            if (header != null) {
                 EncodingStats encodingStats = (EncodingStats) readPrivate(header, "stats");
                 AbstractType<?> keyType = (AbstractType<?>) readPrivate(header, "keyType");
                 Map<ByteBuffer, AbstractType<?>> staticColumns = (Map<ByteBuffer, AbstractType<?>>) readPrivate(header, "staticColumns");
@@ -430,15 +421,15 @@ public class CassandraUtils {
         }
     }
 
-    public static final TreeMap<Double, String> bars = new TreeMap<Double, String>(){{
-        this.put(1.0,     "█"); // full block
-        this.put(7.0/8.0, "▉"); // 7/8ths left block
-        this.put(3.0/4.0, "▊"); // 3/4th block
-        this.put(5.0/8.0, "▋"); // five eighths
-        this.put(0.5,     "▌");
-        this.put(3.0/8.0, "▍"); // three eighths
-        this.put(1.0/4.0, "▎");
-        this.put(1.0/8.0, "▏");
+    public static final TreeMap<Double, String> bars = new TreeMap<Double, String>() {{
+        this.put(1.0,       "█"); // full block
+        this.put(7.0 / 8.0, "▉"); // 7/8ths left block
+        this.put(3.0 / 4.0, "▊"); // 3/4th block
+        this.put(5.0 / 8.0, "▋"); // five eighths
+        this.put(0.5,       "▌");
+        this.put(3.0 / 8.0, "▍"); // three eighths
+        this.put(1.0 / 4.0, "▎");
+        this.put(1.0 / 8.0, "▏");
     }};
 
     private static class TermHistogram {
@@ -449,21 +440,21 @@ public class CassandraUtils {
         int maxValueLength = 5;
 
         public static void printHistogram(EstimatedHistogram histogram, PrintStream out, boolean colors) {
-            String bcolor = colors? "\u001B[36m" : "";
-            String reset = colors? "\u001B[0m" : "";
-            String histoColor = colors? "\u001B[37m" : "";
+            String bcolor = colors ? "\u001B[36m" : "";
+            String reset = colors ? "\u001B[0m" : "";
+            String histoColor = colors ? "\u001B[37m" : "";
 
             TermHistogram h = new TermHistogram(histogram);
-            out.printf("%s  %-" + h.maxValueLength + "s                       | %-"+h.maxCountLength+"s   %%   Histogram %n", bcolor, "Value", "Count");
+            out.printf("%s  %-" + h.maxValueLength + "s                       | %-" + h.maxCountLength + "s   %%   Histogram %n", bcolor, "Value", "Count");
             long[] counts = histogram.getBuckets(false);
             long[] offsets = histogram.getBucketOffsets();
-            for(int i = 0; i < counts.length ; i++) {
+            for (int i = 0; i < counts.length; i++) {
                 if (counts[i] > 0) {
                     String histo = h.asciiHistogram(counts[i], 30);
                     out.printf(reset +
                                     "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
                             offsets[i], toDateString(offsets[i], TimeUnit.SECONDS, true),
-                            bcolor,reset,
+                            bcolor, reset,
                             counts[i],
                             wrapQuiet(String.format("%3s", (int) (100 * ((double) counts[i] / h.sum))), true),
                             histoColor,
@@ -477,16 +468,16 @@ public class CassandraUtils {
                 max = Math.max(max, e.getValue());
                 min = Math.min(min, e.getValue());
                 sum += e.getValue();
-                maxCountLength = Math.max(maxCountLength, (""+e.getValue()).length());
-                maxValueLength = Math.max(maxValueLength, (""+e.getKey().longValue()).length());
+                maxCountLength = Math.max(maxCountLength, ("" + e.getValue()).length());
+                maxValueLength = Math.max(maxValueLength, ("" + e.getKey().longValue()).length());
             });
         }
 
         public TermHistogram(EstimatedHistogram histogram) {
             long[] counts = histogram.getBuckets(false);
-            for (int i = 0; i < counts.length; i ++) {
+            for (int i = 0; i < counts.length; i++) {
                 long e = counts[i];
-                if(e > 0 ) {
+                if (e > 0) {
                     max = Math.max(max, e);
                     min = Math.min(min, e);
                     sum += e;
@@ -502,7 +493,7 @@ public class CassandraUtils {
             int intWidth = (int) (barVal * 1.0 / max * length);
             double remainderWidth = (barVal * 1.0 / max * length) - intWidth;
             sb.append(Strings.repeat("█", intWidth));
-            if(bars.floorKey(remainderWidth) != null) {
+            if (bars.floorKey(remainderWidth) != null) {
                 sb.append("" + bars.get(bars.floorKey(remainderWidth)));
             }
             return sb.toString();
