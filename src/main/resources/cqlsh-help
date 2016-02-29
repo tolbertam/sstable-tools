@@ -1,0 +1,26 @@
+Commands:
+
+HELP               - prints this message
+EXIT               - leaves the shell
+CREATE TABLE ...   - A CREATE TABLE cql statement to use as metadata when reading sstables (HIGHLY RECOMMENDED!)
+DESCRIBE SCHEMA    - Show currently used schema (or serialized cfmetadata if generated)
+DESCRIBE SSTABLES  - Provide details and statistics on current sstable(s)
+PAGING [(ON|OFF)]  - Enables, disables, or shows current status of query paging.
+PAGING <SIZE>      - Enables paging and sets paging size.
+PERSIST [(ON|OFF)] - Enables, disables, or shows current status of persistence of settings state.
+SCHEMA [<FILE>]    - Imports a cql file as the active table schema or shows active user-defined schema.
+USE                - update the sstable[s] used by default with select, dump, describe commands
+    USE /var/lib/cassandra/data/system/peers/ma-1-big-Data.db
+    or with multiple sstables separated with spaces. This can also be a directory which will add all sstables in it.
+    USE ma-1-big-Data.db ma-2-big-Data.db "/home/path with space/db/data/sstables"
+
+SELECT             - run a cql query against the current sstable (unless other specified)
+    SELECT * FROM sstables WHERE key > 1 LIMIT 10
+    the keyword sstables will use the current sstable set with the USE command or set when running cqlsh. You can also
+    specify an sstable here
+    SELECT avg(someColumn) FROM /var/lib/cassandra/data/system/peers/ma-1-big-Data.db WHERE key > 1
+
+DUMP               - dump the raw unfiltered partitions/rows. Useful for debuging TTLed/tombstoned data.
+    DUMP;
+    Can also specify a where clause for filtering the results.
+    DUMP WHERE partitionKey = 'OpsCenter';
