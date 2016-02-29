@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools)[ ![Download](https://api.bintray.com/packages/tolbertam/sstable-tools/sstable-tools.jar/images/download.svg) ](https://bintray.com/tolbertam/sstable-tools/sstable-tools.jar/_latestVersion)
 
-A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under development and not yet stable.
+A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under development and not yet stable. Mainly a proof of concept playground for wish items.
 
 Pre compiled binary available from bintray:
 
@@ -125,7 +125,7 @@ The executable jar will be present in the target directory.
 
 ## cqlsh
 cql shell similiar and modeled after the C* cqlsh tool. Enables issuing cql queries against raw sstables and
-provides additional diagnostic tools over them. Provides history (reverse searchable with ctrl-r) for ease of use.
+provides additional diagnostic tools over them. Provides history (reverse searchable with ctrl-r) and autocomplete for ease of use.
 
 ```text
 Commands:
