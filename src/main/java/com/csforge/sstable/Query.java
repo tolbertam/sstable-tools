@@ -1,6 +1,5 @@
 package com.csforge.sstable;
 
-import com.csforge.sstable.reader.Partition;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.cassandra.config.CFMetaData;
@@ -22,7 +21,6 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -38,8 +36,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -301,29 +297,6 @@ public class Query {
                 result.add(((CollectionType) def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
         } else {
             result.add(row.getCell(def), nowInSec);
-        }
-    }
-
-
-    public static void main(String... args) {
-        try {
-            String query = String.join(" ", args);
-            SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(query);
-            // The column family name in this case is the sstable file path.
-            File path = new File(statement.columnFamily());
-            CFMetaData metadata = CassandraUtils.tableFromBestSource(path);
-            Query q = new Query(query, Collections.singleton(path), metadata);
-
-            if (System.getProperty("query.toJson") != null) {
-                Spliterator<UnfilteredRowIterator> spliterator = Spliterators.spliteratorUnknownSize(
-                        q.getScanner(), Spliterator.IMMUTABLE);
-                Stream<UnfilteredRowIterator> stream = StreamSupport.stream(spliterator, false);
-                JsonTransformer.toJson(stream.map(Partition::new), q.cfm, false, System.out);
-            } else {
-                TableTransformer.dumpResults(metadata, q.getResults().getResultSet(), System.out);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 }

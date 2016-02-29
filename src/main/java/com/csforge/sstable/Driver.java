@@ -16,10 +16,6 @@ public class Driver {
                 SSTable2Json.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
 
-            case "select":
-                Query.main(Arrays.copyOfRange(args, 0, args.length));
-                break;
-
             case "cqlsh":
                 Cqlsh.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
