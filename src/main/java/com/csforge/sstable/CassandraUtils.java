@@ -59,6 +59,8 @@ public class CassandraUtils {
     private static final AtomicInteger cfCounter = new AtomicInteger();
     public static Map<String, UserType> knownTypes = Maps.newHashMap();
     public static String cqlOverride = null;
+    private static String FULL_BAR = Strings.repeat("█", 30);
+    private static String EMPTY_BAR = Strings.repeat("░", 30);
 
     static {
         Config.setClientMode(true);
@@ -229,8 +231,18 @@ public class CassandraUtils {
         String r = color? TableTransformer.ANSI_RESET : "";
         if (new File(fname).exists())
         {
-            // TODO use "◐ ◓ ◑ ◒" while reading
             Descriptor descriptor = Descriptor.fromFilename(fname);
+
+            Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+            ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
+            StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
+            CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
+            CompressionMetadata compression = null;
+            File compressionFile = new File(descriptor.filenameFor(Component.COMPRESSION_INFO));
+            if (compressionFile.exists())
+                compression = CompressionMetadata.create(fname);
+            SerializationHeader.Component header = (SerializationHeader.Component) metadata.get(MetadataType.HEADER);
+
             CFMetaData cfm = tableFromBestSource(new File(fname));
             SSTableReader reader = SSTableReader.openNoValidation(descriptor, cfm);
             ISSTableScanner scanner = reader.getScanner();
@@ -251,7 +263,8 @@ public class CassandraUtils {
             long rowCount = 0;
             long tombstoneCount = 0;
             long cellCount = 0;
-
+            double totalCells = stats.totalColumnsSet;
+            int lastPercent = 0;
             while(scanner.hasNext()) {
                 UnfilteredRowIterator partition = scanner.next();
 
@@ -278,6 +291,13 @@ public class CassandraUtils {
                             pcount++;
                             for (Cell cell : row.cells()) {
                                 cellCount++;
+                                double percentComplete = Math.min(1.0, cellCount /  totalCells);
+                                if(lastPercent != (int) (percentComplete * 100)) {
+                                    lastPercent = (int) (percentComplete * 100);
+                                    int cols = (int) (percentComplete *  30);
+                                    System.out.printf("\r%sAnalyzing SSTable...  %s%s%s %s(%%%s)", c, s, FULL_BAR.substring(30 - cols), EMPTY_BAR.substring(cols), r, (int) (percentComplete * 100));
+                                    System.out.flush();
+                                }
                                 if (cell.isTombstone()) {
                                     tombstoneCount++;
                                     ptombcount++;
@@ -294,6 +314,7 @@ public class CassandraUtils {
                 largestPartitions.add(new ValuedByteBuffer(partition.partitionKey().getKey(), psize));
                 mostTombstones.add(new ValuedByteBuffer(partition.partitionKey().getKey(), ptombcount));
             }
+            out.printf("\r%80s\r", " ");
             out.printf("%sPartitions%s:%s %s%n", c, s, r, partitionCount);
             out.printf("%sRows%s:%s %s%n", c, s, r, rowCount);
             out.printf("%sTombstones%s:%s %s%n", c, s, r, tombstoneCount);
@@ -313,15 +334,6 @@ public class CassandraUtils {
                 }
             });
 
-            Map<MetadataType, MetadataComponent> metadata = descriptor.getMetadataSerializer().deserialize(descriptor, EnumSet.allOf(MetadataType.class));
-            ValidationMetadata validation = (ValidationMetadata) metadata.get(MetadataType.VALIDATION);
-            StatsMetadata stats = (StatsMetadata) metadata.get(MetadataType.STATS);
-            CompactionMetadata compaction = (CompactionMetadata) metadata.get(MetadataType.COMPACTION);
-            CompressionMetadata compression = null;
-            File compressionFile = new File(descriptor.filenameFor(Component.COMPRESSION_INFO));
-            if (compressionFile.exists())
-                compression = CompressionMetadata.create(fname);
-            SerializationHeader.Component header = (SerializationHeader.Component) metadata.get(MetadataType.HEADER);
             List<AbstractType<?>> clusteringTypes = (List<AbstractType<?>>) readPrivate(header, "clusteringTypes");
             if (validation != null)
             {
