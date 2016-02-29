@@ -448,15 +448,15 @@ public class CassandraUtils {
             String histoColor = colors ? "\u001B[37m" : "";
 
             TermHistogram h = new TermHistogram(histogram);
-            out.printf("%s  %-" + h.maxValueLength + "s                       | %-" + h.maxCountLength + "s   %%   Histogram %n", bcolor, "Value", "Count");
+            out.printf("%s  %-" + h.maxValueLength + "s | %-" + h.maxCountLength + "s   %%   Histogram %n", bcolor, "Value", "Count");
             long[] counts = histogram.getBuckets(false);
             long[] offsets = histogram.getBucketOffsets();
             for (int i = 0; i < counts.length; i++) {
                 if (counts[i] > 0) {
                     String histo = h.asciiHistogram(counts[i], 30);
                     out.printf(reset +
-                                    "  %-" + h.maxValueLength + "d %s %s|%s %" + h.maxCountLength + "s %s %s%s %n",
-                            offsets[i], toDateString(offsets[i], TimeUnit.SECONDS, true),
+                                    "  %-" + h.maxValueLength + "d %s|%s %" + h.maxCountLength + "s %s %s%s %n",
+                            offsets[i],
                             bcolor, reset,
                             counts[i],
                             wrapQuiet(String.format("%3s", (int) (100 * ((double) counts[i] / h.sum))), true),
