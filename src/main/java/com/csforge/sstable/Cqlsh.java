@@ -759,7 +759,11 @@ public class Cqlsh {
                 } catch (UserInterruptException e) {
                 } catch (RuntimeException e) {
                     if (e.getMessage().startsWith("Unknown column")) {
-                        System.out.printf("%sUnknown Column. Likely the schema is not correct for this sstable. Try '%sSCHEMA OFF%s' to use metadata from statistics.%s%n", ANSI_RED, "\u001B[1;31m", "\u001B[0;31m", ANSI_RESET);
+                        if(Strings.isNullOrEmpty(CassandraUtils.cqlOverride)) {
+                            System.out.printf("%sUnknown Column. Likely the schema does not match across sstables. Try defining your schema with an appropriate '%sCREATE TABLE%s' statement.%s%n", ANSI_RED, "\u001B[1;31m", "\u001B[0;31m", ANSI_RESET);
+                        } else {
+                            System.out.printf("%sUnknown Column. Likely the schema is not correct for this sstable. Try '%sSCHEMA OFF%s' to use metadata from statistics.%s%n", ANSI_RED, "\u001B[1;31m", "\u001B[0;31m", ANSI_RESET);
+                        }
                     } else {
                         e.printStackTrace();
                     }

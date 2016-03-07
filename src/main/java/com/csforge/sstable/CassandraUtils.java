@@ -71,7 +71,7 @@ public class CassandraUtils {
         // TODO add CQL/Thrift mechanisms as well
 
         CFMetaData metadata;
-        if (cqlOverride != null) {
+        if (!Strings.isNullOrEmpty(cqlOverride)) {
             logger.debug("Using override metadata");
             metadata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(cqlOverride.getBytes()));
         } else {
