@@ -12,10 +12,6 @@ public class Driver {
             System.exit(-1);
         }
         switch(args[0].toLowerCase()) {
-            case "tojson":
-                SSTable2Json.main(Arrays.copyOfRange(args, 1, args.length));
-                break;
-
             case "cqlsh":
                 Cqlsh.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
@@ -41,6 +37,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: cqlsh, toJson, describe");
+        System.err.println("Available commands: cqlsh, describe");
     }
 }
