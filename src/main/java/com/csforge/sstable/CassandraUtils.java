@@ -147,11 +147,10 @@ public class CassandraUtils {
 
         IPartitioner partitioner = FBUtilities.newPartitioner(validationMetadata.partitioner);
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-
-        AbstractType<?> keyType = (AbstractType<?>) readPrivate(header, "keyType");
-        List<AbstractType<?>> clusteringTypes = (List<AbstractType<?>>) readPrivate(header, "clusteringTypes");
-        Map<ByteBuffer, AbstractType<?>> staticColumns = (Map<ByteBuffer, AbstractType<?>>) readPrivate(header, "staticColumns");
-        Map<ByteBuffer, AbstractType<?>> regularColumns = (Map<ByteBuffer, AbstractType<?>>) readPrivate(header, "regularColumns");
+        AbstractType<?> keyType = header.getKetType();
+        List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
+        Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
+        Map<ByteBuffer, AbstractType<?>> regularColumns = header.getRegularColumns();
         int id = cfCounter.incrementAndGet();
         CFMetaData.Builder builder = CFMetaData.Builder.create("turtle" + id, "turtles" + id);
         staticColumns.entrySet().stream()
@@ -400,10 +399,10 @@ public class CassandraUtils {
                 out.printf("%sEstimated cardinality%s:%s %s%n", c, s, r, compaction.cardinalityEstimator.cardinality());
             }
             if (header != null) {
-                EncodingStats encodingStats = (EncodingStats) readPrivate(header, "stats");
-                AbstractType<?> keyType = (AbstractType<?>) readPrivate(header, "keyType");
-                Map<ByteBuffer, AbstractType<?>> staticColumns = (Map<ByteBuffer, AbstractType<?>>) readPrivate(header, "staticColumns");
-                Map<ByteBuffer, AbstractType<?>> regularColumns = (Map<ByteBuffer, AbstractType<?>>) readPrivate(header, "regularColumns");
+                EncodingStats encodingStats = header.getEncodingStats();
+                AbstractType<?> keyType = header.getKetType();
+                Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
+                Map<ByteBuffer, AbstractType<?>> regularColumns = header.getRegularColumns();
                 Map<String, String> statics = staticColumns.entrySet().stream()
                         .collect(Collectors.toMap(
                                 e -> UTF8Type.instance.getString(e.getKey()),
