@@ -6,7 +6,8 @@
     </encoder>
   </appender>
 
-  <root level="error">
+  <root level="OFF">
     <appender-ref ref="STDERR" />
   </root>
+
 </configuration>

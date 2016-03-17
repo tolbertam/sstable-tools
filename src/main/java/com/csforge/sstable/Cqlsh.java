@@ -112,6 +112,8 @@ public class Cqlsh {
 
     private static final String PROP_PREFERENCES_ENABLED = "preferencesEnabled";
 
+    private static final String MORE = "\n---MORE--- [enter to continue, ctrl-c to break]";
+
     static {
         if (!CONFIG_DIR.exists()) {
             boolean created = CONFIG_DIR.mkdirs();
@@ -357,7 +359,7 @@ public class Cqlsh {
                 if (paging && rowsPaged.get() >= pageSize) {
                     rowsPaged.set(0);
                     try {
-                        String input = console.readLine("\n---MORE---", ' ');
+                        String input = console.readLine(MORE, ' ');
                         if (input == null) {
                             totalRows.set(Integer.MAX_VALUE);
                         }
@@ -421,7 +423,7 @@ public class Cqlsh {
                 console.setHistoryEnabled(false);
                 while (resultData.getPagingData().hasMorePages()) {
                     try {
-                        String input = console.readLine("\n---MORE---", ' ');
+                        String input = console.readLine(MORE, ' ');
                         if (input == null) {
                             done = true;
                             terminated = true;
@@ -613,7 +615,7 @@ public class Cqlsh {
             } else if (command.toLowerCase().startsWith("dump")) {
                 doDump(command);
                 continue;
-            } else if (command.toLowerCase().equals("help")) {
+            } else if (command.toLowerCase().equals("help") || command.trim().equals("?")) {
                 try {
                     System.out.println(Resources.toString(Resources.getResource("cqlsh-help"), Charsets.UTF_8));
                 } catch (IOException e) {
