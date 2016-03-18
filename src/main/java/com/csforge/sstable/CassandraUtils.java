@@ -1,7 +1,12 @@
 package com.csforge.sstable;
 
+import com.datastax.driver.core.Cluster;
+import com.datastax.driver.core.Metadata;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TableMetadata;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MinMaxPriorityQueue;
 import com.google.common.io.CharStreams;
@@ -75,21 +80,11 @@ public class CassandraUtils {
             logger.debug("Using override metadata");
             metadata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(cqlOverride.getBytes()));
         } else {
-            String cqlPath = System.getProperty("sstabletools.schema");
-            InputStream in;
-            if (!Strings.isNullOrEmpty(cqlPath)) {
-                in = new FileInputStream(cqlPath);
-            } else {
-                in = Query.class.getClassLoader().getResourceAsStream("schema.cql");
-                if (in == null && new File("schema.cql").exists()) {
-                    in = new FileInputStream("schema.cql");
-                }
-            }
+            InputStream in = findSchema();
             if (in == null) {
                 logger.debug("Using metadata from sstable");
                 metadata = CassandraUtils.tableFromSSTable(sstablePath);
             } else {
-                logger.debug("Using metadata from CQL schema in " + cqlPath);
                 metadata = CassandraUtils.tableFromCQL(in);
             }
         }
@@ -104,7 +99,43 @@ public class CassandraUtils {
         }
     }
 
+    public static InputStream findSchema() throws IOException {
+        String cqlPath = System.getProperty("sstabletools.schema");
+        InputStream in;
+        if (!Strings.isNullOrEmpty(cqlPath)) {
+            in = new FileInputStream(cqlPath);
+        } else {
+            in = Query.class.getClassLoader().getResourceAsStream("schema.cql");
+            if (in == null && new File("schema.cql").exists()) {
+                in = new FileInputStream("schema.cql");
+            }
+        }
+        return in;
+    }
+
+    public static void loadTablesFromRemote(String host, int port) throws IOException {
+        Cluster.Builder builder = Cluster.builder().addContactPoints(host).withPort(port);
+
+        try (Cluster cluster = builder.build(); Session session = cluster.connect()) {
+            Metadata metadata = cluster.getMetadata();
+            IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
+            if (DatabaseDescriptor.getPartitioner() == null)
+                DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+            for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
+                if(!ksm.getName().equals("system")) {
+                    for (TableMetadata tm : ksm.getTables()) {
+                        CassandraUtils.tableFromCQL(new ByteArrayInputStream(tm.asCQLQuery().getBytes()), tm.getId());
+                    }
+                }
+            }
+        }
+    }
+
     public static CFMetaData tableFromCQL(InputStream source) throws IOException {
+        return tableFromCQL(source, null);
+    }
+
+    public static CFMetaData tableFromCQL(InputStream source, UUID cfid) throws IOException {
         String schema = CharStreams.toString(new InputStreamReader(source, "UTF-8"));
         CFStatement statement = (CFStatement) QueryProcessor.parseStatement(schema);
         String keyspace = "";
@@ -115,10 +146,22 @@ public class CassandraUtils {
             keyspace = "turtles";
         }
         statement.prepareKeyspace(keyspace);
-
-        Schema.instance.setKeyspaceMetadata(KeyspaceMetadata.create(keyspace, KeyspaceParams.local(), Tables.none(),
-                Views.none(), getTypes(), Functions.none()));
-        return ((CreateTableStatement) statement.prepare().statement).getCFMetaData();
+        if(Schema.instance.getKSMetaData(keyspace) == null) {
+            Schema.instance.setKeyspaceMetadata(KeyspaceMetadata.create(keyspace, KeyspaceParams.local(), Tables.none(),
+                    Views.none(), getTypes(), Functions.none()));
+        }
+        CFMetaData cfm;
+        if(cfid != null) {
+            cfm = ((CreateTableStatement) statement.prepare().statement).metadataBuilder().withId(cfid).build();
+            KeyspaceMetadata prev = Schema.instance.getKSMetaData(keyspace);
+            List<CFMetaData> tables = Lists.newArrayList(prev.tablesAndViews());
+            tables.add(cfm);
+            Schema.instance.setKeyspaceMetadata(prev.withSwapped(Tables.of(tables)));
+            Schema.instance.load(cfm);
+        } else {
+            cfm = ((CreateTableStatement) statement.prepare().statement).getCFMetaData();
+        }
+        return cfm;
     }
 
     public static Object readPrivate(Object obj, String name) throws NoSuchFieldException, IllegalAccessException {

@@ -1,6 +1,7 @@
 package com.csforge.sstable;
 
 import com.google.common.base.Strings;
+import org.apache.cassandra.hints.HintsTool;
 
 import java.io.File;
 import java.util.Arrays;
@@ -28,6 +29,9 @@ public class Driver {
                 }
                 break;
 
+            case "hints":
+                HintsTool.main(Arrays.copyOfRange(args, 1, args.length));
+                break;
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();
@@ -37,6 +41,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: cqlsh, describe");
+        System.err.println("Available commands: cqlsh, describe, hints");
     }
 }
