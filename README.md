@@ -14,6 +14,7 @@ since been merged into Cassandra starting with versions 3.0.4 and 3.4 as the `ss
 Example usage:
 
     java -jar sstable-tools.jar cqlsh
+    java -jar sstable-tools.jar hints 1458779867606-1.hints
     java -jar sstable-tools.jar describe ma-2-big-Data.db
 
 Example shell usage:
@@ -112,6 +113,7 @@ Example shell usage:
 
 * [cqlsh](#cqlsh) - Drop into an interactive shell to make queries against SSTables.
 * [describe](#describe) - Describe SSTable data and metadata.
+* [hints](#hints) - Dump hints from a hint file
 
 ## Building
 
@@ -286,3 +288,37 @@ RegularColumns: {val:org.apache.cassandra.db.marshal.UTF8Type}
 java -jar sstable-tools.jar describe /path/to/file.db
 ```
 
+## hints
+
+Deserialize the mutations in a hints file and print them to standard out. To have the information necessary do deserialize
+the mutations this tool requires the schema of the file. This is currently handled by connecting to the cluster and querying
+the metadata. You can specify the host and (cql) port via the `-h` and `-p` options.
+
+Example Output:
+
+```
+java -jar sstable-tools.jar hints 1458786695234-1.hints
+Loading schema from 127.0.0.1:9042
+/Users/clohfink/1458786695234-1.hints
+=====================================
+[test.t1] key=1 columns=[[] | [val]]
+    Row: EMPTY | val=1
+[[val=1 ts=1458786688691698]]
+
+```
+
+### Usage
+
+```
+java -jar sstable-tools.jar hints
+
+usage: hints [-h <arg>] [-p <arg>] [-s] hintfile [hintfile ...]
+
+Hint Dump for Apache Cassandra 3.x
+Options:
+  -h <arg> Host to extract schema frome.
+  -p <arg> CQL native port.
+  -s       Only output mutations.
+  hintfile at least one file containing hints
+
+```
