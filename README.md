@@ -304,6 +304,12 @@ Loading schema from 127.0.0.1:9042
 [test.t1] key=1 columns=[[] | [val]]
     Row: EMPTY | val=1
 [[val=1 ts=1458786688691698]]
+[test.wide] key=myPartitionKey columns=[[] | [val]]
+    Row: key2=myClusteringKey | val=myValue
+[[val=myValue ts=1458790233298650]]
+[test.wide] key=myPartitionKey columns=[[] | [val]]
+    Row: key2=myClusteringKey2 | val=myValue2
+[[val=myValue2 ts=1458790238249336]]
 
 ```
 
