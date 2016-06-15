@@ -414,8 +414,8 @@ public class CassandraUtils {
                 out.printf("%sEstimated droppable tombstones%s:%s %s%n", c, s, r, stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
                 out.printf("%sSSTable Level%s:%s %d%n", c, s, r, stats.sstableLevel);
                 out.printf("%sRepaired at%s:%s %d %s%n", c, s, r, stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS, color));
-                out.println("  Lower bound:" + stats.commitLogLowerBound);
-                out.println("  Upper bound:" + stats.commitLogUpperBound);
+                out.printf("  %sLower bound%s:%s %s%n", c, s, r, stats.commitLogLowerBound);
+                out.printf("  %sUpper bound%s:%s %s%n", c, s, r, stats.commitLogUpperBound);
                 out.printf("%stotalColumnsSet%s:%s %s%n", c, s, r, stats.totalColumnsSet);
                 out.printf("%stotalRows%s:%s %s%n", c, s, r, stats.totalRows);
                 out.printf("%sEstimated tombstone drop times%s:%s%n", c, s, r);
