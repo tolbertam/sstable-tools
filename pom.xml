@@ -141,4 +141,10 @@
     </plugin>
     </plugins>
   </build>
+  <scm>
+    <connection>scm:git:git@github.com:tolbertam/sstable-tools.git</connection>
+    <developerConnection>scm:git:git@github.com:tolbertam/sstable-tools.git</developerConnection>
+    <url>https://github.com/tolbertam/sstable-tools</url>
+    <tag>HEAD</tag>
+  </scm>
 </project>
