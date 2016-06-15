@@ -8,12 +8,12 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 
-public class CqlshTests {
+public class TestCqlsh {
 
     @Test
     public void testUse() throws Exception {
         Cqlsh sh = new Cqlsh();
-        File path = Utils.getDB(3);
+        File path = Utils.getSSTable(3);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         sh.metadata = cfdata;
         sh.doUse("USE " + path.getAbsolutePath() + " \"ban ana\"");
@@ -24,7 +24,7 @@ public class CqlshTests {
     @Test
     public void testUseDirectory() throws Exception {
         Cqlsh sh = new Cqlsh();
-        File path = Utils.getDB(3);
+        File path = Utils.getSSTable(3);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         sh.metadata = cfdata;
         sh.doUse("USE " + path.getParentFile().getAbsolutePath());
