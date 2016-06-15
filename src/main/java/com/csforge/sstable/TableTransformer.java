@@ -25,19 +25,19 @@ public class TableTransformer {
     public static final String ANSI_WHITE = "\u001B[37m";
 
     private static String colValue(ResultSet results, List<ByteBuffer> row, int i) throws Exception {
-        ByteBuffer v = row.get(i);
-        if (v == null) {
-            return "null";
-        } else {
+        ByteBuffer v = row.get(i).duplicate();
+        String ret = "null";
+        if (v != null) {
             EnumSet<ResultSet.Flag> flags = (EnumSet<ResultSet.Flag>) CassandraUtils.readPrivate(results.metadata, "flags");
             if (flags.contains(ResultSet.Flag.NO_METADATA)) {
-                return "0x" + ByteBufferUtil.bytesToHex(v);
+                ret = "0x" + ByteBufferUtil.bytesToHex(v);
             } else if (results.metadata.names.get(i).type.isCollection()) {
-                return results.metadata.names.get(i).type.getSerializer().deserialize(v).toString();
+                ret = results.metadata.names.get(i).type.getSerializer().deserialize(v).toString();
             } else {
-                return results.metadata.names.get(i).type.getString(v);
+                ret = results.metadata.names.get(i).type.getString(v);
             }
         }
+        return ret;
     }
 
     private static void printLine(char left, char mid, char right, char cross, int[] padding, PrintStream out) {

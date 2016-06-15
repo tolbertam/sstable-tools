@@ -21,6 +21,7 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.*;
@@ -206,9 +207,12 @@ public class CassandraUtils {
         regularColumns.entrySet().stream()
                 .forEach(entry ->
                         builder.addRegularColumn(UTF8Type.instance.getString(entry.getKey()), entry.getValue()));
-        builder.addPartitionKey("PartitionKey", keyType);
+        List<AbstractType<?>> partTypes = keyType.getComponents();
+        for(int i = 0; i < partTypes.size(); i++) {
+            builder.addPartitionKey("partition" + (i > 0 ? i : ""), partTypes.get(i));
+        }
         for (int i = 0; i < clusteringTypes.size(); i++) {
-            builder.addClusteringColumn("key" + (i > 0 ? i : ""), clusteringTypes.get(i));
+            builder.addClusteringColumn("row" + (i > 0 ? i : ""), clusteringTypes.get(i));
         }
         CFMetaData metaData = builder.build();
         Schema.instance.setKeyspaceMetadata(KeyspaceMetadata.create(metaData.ksName, KeyspaceParams.local(),

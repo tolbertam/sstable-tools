@@ -92,6 +92,18 @@ public class TestSelect {
     }
 
     @Test
+    public void testSelectCompositeFromSSTable() throws Exception {
+        File path = Utils.getSSTable("ma", 1);
+        String query = String.format("SELECT * FROM \"%s\"", path);
+        CFMetaData cfdatatrue = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL1.getBytes()));
+        CFMetaData cfdata = CassandraUtils.tableFromSSTable(Utils.getSSTable("ma", 1));
+        Query q = new Query(query, Collections.singleton(path), cfdata);
+        ResultSet result = q.getResults().getResultSet();
+        Assert.assertEquals(2, result.rows.size());
+        TableTransformer.dumpResults(cfdata, result, System.out);
+    }
+
+    @Test
     public void testSelectCollections() throws Exception {
         File path = Utils.getSSTable("ma", 4);
         String query = String.format("SELECT * FROM \"%s\"", path);
@@ -100,6 +112,5 @@ public class TestSelect {
         ResultSet result = q.getResults().getResultSet();
         Assert.assertEquals(1, result.rows.size());
         TableTransformer.dumpResults(cfdata, result, System.out);
-
     }
 }
