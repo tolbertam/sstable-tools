@@ -51,7 +51,7 @@ public class TestCUtils {
 
     @Test
     public void testFromSSTable() throws Exception {
-        File path = Utils.getSSTable(2);
+        File path = Utils.getSSTable("ma", 2);
         CFMetaData cfm = CassandraUtils.tableFromSSTable(path);
         Assert.assertEquals(5, cfm.allColumns().size());
     }

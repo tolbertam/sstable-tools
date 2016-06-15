@@ -4,6 +4,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -27,8 +28,7 @@ public class TestSelect {
 
     @Test
     public void testSelectAll() throws Exception {
-        File path = Utils.getSSTable(2);
-        System.err.println(path);
+        File path = Utils.getSSTable("ma", 2);
         String query = String.format("SELECT * FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL2.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);
@@ -37,6 +37,21 @@ public class TestSelect {
             UnfilteredRowIterator partition = scanner.next();
             Unfiltered row = partition.next();
             Assert.assertEquals("Row:  | birth_year=1985, gender=male, password=pass@, state=CA", row.toString(cfdata));
+            Assert.assertFalse(partition.hasNext());
+        }
+    }
+
+    @Test
+    public void testSelectAllMB() throws Exception {
+        File path = Utils.getSSTable("mb", 1);
+        String query = String.format("SELECT * FROM \"%s\"", path);
+        CFMetaData cfdata = SystemKeyspace.Batches;
+        Query q = new Query(query, Collections.singleton(path), cfdata);
+        try(UnfilteredPartitionIterator scanner = q.getScanner()) {
+            Assert.assertTrue(scanner.hasNext());
+            UnfilteredRowIterator partition = scanner.next();
+            Unfiltered row = partition.next();
+            Assert.assertEquals("Row:  | ", row.toString(cfdata));
             Assert.assertFalse(partition.hasNext());
         }
     }
@@ -57,7 +72,7 @@ public class TestSelect {
 
     @Test
     public void testSelectLimit() throws Exception {
-        File path = Utils.getSSTable(3);
+        File path = Utils.getSSTable("ma", 3);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         Assert.assertEquals(3, getLength(String.format("SELECT * FROM \"%s\" limit 3", path), path, cfdata));
         Assert.assertEquals(1, getLength(String.format("SELECT * FROM \"%s\" limit 1", path), path, cfdata));
@@ -67,7 +82,7 @@ public class TestSelect {
 
     @Test
     public void testSelectCount() throws Exception {
-        File path = Utils.getSSTable(3);
+        File path = Utils.getSSTable("ma", 3);
         String query = String.format("SELECT count(*) FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);
@@ -78,7 +93,7 @@ public class TestSelect {
 
     @Test
     public void testSelectCollections() throws Exception {
-        File path = Utils.getSSTable(4);
+        File path = Utils.getSSTable("ma", 4);
         String query = String.format("SELECT * FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL4.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);

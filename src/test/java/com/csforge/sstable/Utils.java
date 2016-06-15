@@ -40,15 +40,15 @@ public class Utils {
         return tmp;
     }
 
-    public static File getSSTable(int generation) throws Exception {
-        copyResource("ma-" + generation + "-big-Digest.crc32");
-        copyResource("ma-" + generation + "-big-TOC.txt");
-        copyResource("ma-" + generation + "-big-CompressionInfo.db");
-        copyResource("ma-" + generation + "-big-Filter.db");
-        copyResource("ma-" + generation + "-big-Index.db");
-        copyResource("ma-" + generation + "-big-Statistics.db");
-        copyResource("ma-" + generation + "-big-Summary.db");
-        copyResource("ma-" + generation + "-big-TOC.txt");
-        return copyResource("ma-" + generation + "-big-Data.db");
+    public static File getSSTable(String version, int generation) throws Exception {
+        copyResource(version + "-" + generation + "-big-Digest.crc32");
+        copyResource(version + "-" + generation + "-big-TOC.txt");
+        copyResource(version + "-" + generation + "-big-CompressionInfo.db");
+        copyResource(version + "-" + generation + "-big-Filter.db");
+        copyResource(version + "-" + generation + "-big-Index.db");
+        copyResource(version + "-" + generation + "-big-Statistics.db");
+        copyResource(version + "-" + generation + "-big-Summary.db");
+        copyResource(version + "-" + generation + "-big-TOC.txt");
+        return copyResource(version + "-" + generation + "-big-Data.db");
     }
 }

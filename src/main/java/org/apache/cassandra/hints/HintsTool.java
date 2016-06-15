@@ -97,19 +97,19 @@ public class HintsTool {
                 System.out.print(ANSI_RESET);
             }
             for (String hint : cmd.getArgs()) {
-                File hint_file = new File(hint);
-                if (!hint_file.exists()) {
+                File hintFile = new File(hint);
+                if (!hintFile.exists()) {
                     if(!cmd.hasOption(SILENT_OPTION)) {
                         System.out.println("\r" + ANSI_RESET);
                     }
                     System.err.println("Non-existant hint file provided: " + hint);
                 } else {
                     if(!cmd.hasOption(SILENT_OPTION)) {
-                        System.out.println("\r\u001B[1;34m" + hint_file.getAbsolutePath());
-                        System.out.println(ANSI_CYAN + Strings.repeat("=", hint_file.getAbsolutePath().length()));
+                        System.out.println("\r\u001B[1;34m" + hintFile.getAbsolutePath());
+                        System.out.println(ANSI_CYAN + Strings.repeat("=", hintFile.getAbsolutePath().length()));
                         System.out.print(ANSI_RESET);
                     }
-                    dumpHints(hint_file, System.out, version);
+                    dumpHints(hintFile, System.out, version);
                 }
             }
         } catch (Exception e) {
