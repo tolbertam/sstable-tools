@@ -82,7 +82,7 @@ public class Query {
                 statement.whereClause,
                 boundNames,
                 selection.containsOnlyStaticColumns(),
-                selection.containsACollection(),
+                selection.containsAComplexColumn(),
                 true, true);
 
         this.statement = statement;
@@ -119,25 +119,25 @@ public class Query {
 
     private Slices makeSlices()
             throws InvalidRequestException {
-        SortedSet<Slice.Bound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, OPTIONS);
-        SortedSet<Slice.Bound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, OPTIONS);
+        SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, OPTIONS);
+        SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, OPTIONS);
         assert startBounds.size() == endBounds.size();
 
         // The case where startBounds == 1 is common enough that it's worth optimizing
         if (startBounds.size() == 1) {
-            Slice.Bound start = startBounds.first();
-            Slice.Bound end = endBounds.first();
+            ClusteringBound start = startBounds.first();
+            ClusteringBound end = endBounds.first();
             return cfm.comparator.compare(start, end) > 0
                     ? Slices.NONE
                     : Slices.with(cfm.comparator, Slice.make(start, end));
         }
 
         Slices.Builder builder = new Slices.Builder(cfm.comparator, startBounds.size());
-        Iterator<Slice.Bound> startIter = startBounds.iterator();
-        Iterator<Slice.Bound> endIter = endBounds.iterator();
+        Iterator<ClusteringBound> startIter = startBounds.iterator();
+        Iterator<ClusteringBound> endIter = endBounds.iterator();
         while (startIter.hasNext() && endIter.hasNext()) {
-            Slice.Bound start = startIter.next();
-            Slice.Bound end = endIter.next();
+            ClusteringBound start = startIter.next();
+            ClusteringBound end = endIter.next();
 
             // Ignore slices that are nonsensical
             if (cfm.comparator.compare(start, end) > 0)
@@ -294,7 +294,7 @@ public class Query {
             if (complexData == null)
                 result.add((ByteBuffer) null);
             else
-                result.add(((CollectionType) def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
+                result.add(((CollectionType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
         } else {
             result.add(row.getCell(def), nowInSec);
         }

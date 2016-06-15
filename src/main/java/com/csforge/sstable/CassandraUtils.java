@@ -25,6 +25,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
@@ -188,9 +189,12 @@ public class CassandraUtils {
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
         Preconditions.checkNotNull(header, "Metadata could not be resolved, accompanying Statistics.db file must be missing.");
 
-        IPartitioner partitioner = FBUtilities.newPartitioner(validationMetadata.partitioner);
+        IPartitioner partitioner = validationMetadata.partitioner.endsWith("LocalPartitioner") ?
+                new LocalPartitioner(header.getKeyType()) :
+                FBUtilities.newPartitioner(validationMetadata.partitioner);
+
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-        AbstractType<?> keyType = header.getKetType();
+        AbstractType<?> keyType = header.getKeyType();
         List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
         Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
         Map<ByteBuffer, AbstractType<?>> regularColumns = header.getRegularColumns();
@@ -410,7 +414,8 @@ public class CassandraUtils {
                 out.printf("%sEstimated droppable tombstones%s:%s %s%n", c, s, r, stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
                 out.printf("%sSSTable Level%s:%s %d%n", c, s, r, stats.sstableLevel);
                 out.printf("%sRepaired at%s:%s %d %s%n", c, s, r, stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS, color));
-                out.println("  " + stats.replayPosition);
+                out.printf("  %sLower bound%s:%s %s%n", c, s, r, stats.commitLogLowerBound);
+                out.printf("  %sUpper bound%s:%s %s%n", c, s, r, stats.commitLogUpperBound);
                 out.printf("%stotalColumnsSet%s:%s %s%n", c, s, r, stats.totalColumnsSet);
                 out.printf("%stotalRows%s:%s %s%n", c, s, r, stats.totalRows);
                 out.printf("%sEstimated tombstone drop times%s:%s%n", c, s, r);
@@ -443,7 +448,7 @@ public class CassandraUtils {
             }
             if (header != null) {
                 EncodingStats encodingStats = header.getEncodingStats();
-                AbstractType<?> keyType = header.getKetType();
+                AbstractType<?> keyType = header.getKeyType();
                 Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
                 Map<ByteBuffer, AbstractType<?>> regularColumns = header.getRegularColumns();
                 Map<String, String> statics = staticColumns.entrySet().stream()
@@ -467,11 +472,9 @@ public class CassandraUtils {
     }
 
     public static final TreeMap<Double, String> bars = new TreeMap<Double, String>() {{
-        this.put(1.0,       "█"); // full block
         this.put(7.0 / 8.0, "▉"); // 7/8ths left block
         this.put(3.0 / 4.0, "▊"); // 3/4th block
         this.put(5.0 / 8.0, "▋"); // five eighths
-        this.put(0.5,       "▌");
         this.put(3.0 / 8.0, "▍"); // three eighths
         this.put(1.0 / 4.0, "▎");
         this.put(1.0 / 8.0, "▏");
@@ -537,7 +540,7 @@ public class CassandraUtils {
             long barVal = count;
             int intWidth = (int) (barVal * 1.0 / max * length);
             double remainderWidth = (barVal * 1.0 / max * length) - intWidth;
-            sb.append(Strings.repeat("█", intWidth));
+            sb.append(Strings.repeat("▉", intWidth));
             if (bars.floorKey(remainderWidth) != null) {
                 sb.append("" + bars.get(bars.floorKey(remainderWidth)));
             }

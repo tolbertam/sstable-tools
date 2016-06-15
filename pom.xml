@@ -7,7 +7,7 @@
   <version>3.0.0-SNAPSHOT</version>
   <name>SSTable Tools</name>
   <properties>
-    <cassandra.version>3.4</cassandra.version>
+    <cassandra.version>3.7</cassandra.version>
     <driver.version>3.0.0</driver.version>
     <powermock.version>1.6.4</powermock.version>
     <junit.version>4.6</junit.version>
@@ -42,6 +42,11 @@
       <artifactId>logback-classic</artifactId>
       <version>${logback.version}</version>
     </dependency>
+      <dependency>
+        <groupId>com.github.chrisbrenton</groupId>
+        <artifactId>grappa-parsetree</artifactId>
+        <version>1.0.0</version>
+      </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -126,49 +131,14 @@
           <cleanupDaemonThreads>false</cleanupDaemonThreads>
         </configuration>
       </plugin>
+      <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <version>2.19.1</version>
+      <configuration>
+        <argLine>-disableassertions</argLine>
+      </configuration>
+    </plugin>
     </plugins>
   </build>
-  <profiles>
-    <profile>
-      <id>integration-test</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-        <!--
-        when environment can be properly set up, reenable this and remove activeByDefault element
-        <property>
-          <name>!skipTests</name>
-        </property>-->
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>exec-maven-plugin</artifactId>
-            <version>1.4.0</version>
-            <executions>
-              <execution>
-                <configuration>
-                  <executable>python</executable>
-                  <workingDirectory>src/integration/python</workingDirectory>
-                  <arguments>
-                    <argument>tests.py</argument>
-                  </arguments>
-                  <environmentVariables>
-                    <PYTHONPATH>../../main/python:$PYTHONPATH</PYTHONPATH>
-                    <CASSANDRA_VERSION>${cassandra.version}</CASSANDRA_VERSION>
-                  </environmentVariables>
-                </configuration>
-                <id>integration-test</id>
-                <phase>integration-test</phase>
-                <goals>
-                  <goal>exec</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-
-  </profiles>
 </project>

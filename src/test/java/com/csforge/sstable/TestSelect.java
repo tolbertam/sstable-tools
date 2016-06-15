@@ -16,7 +16,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SelectTests {
+public class TestSelect {
     static {
         Config.setClientMode(true);
 
@@ -27,7 +27,7 @@ public class SelectTests {
 
     @Test
     public void testSelectAll() throws Exception {
-        File path = Utils.getDB(2);
+        File path = Utils.getSSTable(2);
         System.err.println(path);
         String query = String.format("SELECT * FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL2.getBytes()));
@@ -57,7 +57,7 @@ public class SelectTests {
 
     @Test
     public void testSelectLimit() throws Exception {
-        File path = Utils.getDB(3);
+        File path = Utils.getSSTable(3);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         Assert.assertEquals(3, getLength(String.format("SELECT * FROM \"%s\" limit 3", path), path, cfdata));
         Assert.assertEquals(1, getLength(String.format("SELECT * FROM \"%s\" limit 1", path), path, cfdata));
@@ -67,7 +67,7 @@ public class SelectTests {
 
     @Test
     public void testSelectCount() throws Exception {
-        File path = Utils.getDB(3);
+        File path = Utils.getSSTable(3);
         String query = String.format("SELECT count(*) FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL3.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);
@@ -78,7 +78,7 @@ public class SelectTests {
 
     @Test
     public void testSelectCollections() throws Exception {
-        File path = Utils.getDB(4);
+        File path = Utils.getSSTable(4);
         String query = String.format("SELECT * FROM \"%s\"", path);
         CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL4.getBytes()));
         Query q = new Query(query, Collections.singleton(path), cfdata);

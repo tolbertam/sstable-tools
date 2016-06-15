@@ -40,7 +40,7 @@ public class Utils {
         return tmp;
     }
 
-    public static File getDB(int generation) throws Exception {
+    public static File getSSTable(int generation) throws Exception {
         copyResource("ma-" + generation + "-big-Digest.crc32");
         copyResource("ma-" + generation + "-big-TOC.txt");
         copyResource("ma-" + generation + "-big-CompressionInfo.db");
