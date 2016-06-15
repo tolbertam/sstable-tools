@@ -25,7 +25,7 @@ public class HintsTool {
 
     static {
         Config.setClientMode(true);
-        Option hostOption = new Option(HOST_OPTION, true, "Host to extract schema frome.");
+        Option hostOption = new Option(HOST_OPTION, true, "Host to extract schema from.");
         hostOption.setRequired(false);
         options.addOption(hostOption);
         Option portOption = new Option(PORT_OPTION, true, "CQL native port.");

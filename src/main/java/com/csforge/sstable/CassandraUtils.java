@@ -166,6 +166,12 @@ public class CassandraUtils {
         return cfm;
     }
 
+    public static Object readPrivate(Class clz, String name) throws NoSuchFieldException, IllegalAccessException {
+        Field type = clz.getDeclaredField(name);
+        type.setAccessible(true);
+        return type.get(null);
+    }
+
     public static Object readPrivate(Object obj, String name) throws NoSuchFieldException, IllegalAccessException {
         Field type = obj.getClass().getDeclaredField(name);
         type.setAccessible(true);
