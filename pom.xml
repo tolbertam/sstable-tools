@@ -4,7 +4,7 @@
   <groupId>com.csforge</groupId>
   <artifactId>sstable-tools</artifactId>
   <packaging>jar</packaging>
-  <version>3.0.0-SNAPSHOT</version>
+  <version>3.7.0-alpha6-SNAPSHOT</version>
   <name>SSTable Tools</name>
   <properties>
     <cassandra.version>3.7</cassandra.version>

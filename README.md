@@ -6,7 +6,7 @@ A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SST
 
 Pre compiled binary available from bintray:
 
-* [sstable-tools-3.0.0-alpha6.jar](https://bintray.com/artifact/download/tolbertam/sstable-tools/sstable-tools-3.0.0-alpha6.jar) -  Supports 3.0 to 3.7 (ma and mb sstable formats)
+* [sstable-tools-3.0.7-alpha6.jar](https://bintray.com/artifact/download/tolbertam/sstable-tools/sstable-tools-3.0.7-alpha6.jar) -  Supports 3.0 to 3.7 (ma and mb sstable formats)
 
 **Note:** This tool formerly included a `tojson` command which dumped SSTable contents to JSON.  This functionality has
 since been merged into Cassandra starting with versions 3.0.4 and 3.4 as the `sstabledump` command.
