@@ -115,22 +115,21 @@ public class CassandraUtils {
         return in;
     }
 
-    public static void loadTablesFromRemote(String host, int port) throws IOException {
+    public static Cluster loadTablesFromRemote(String host, int port) throws IOException {
         Cluster.Builder builder = Cluster.builder().addContactPoints(host).withPort(port);
-
-        try (Cluster cluster = builder.build(); Session session = cluster.connect()) {
-            Metadata metadata = cluster.getMetadata();
-            IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
-            if (DatabaseDescriptor.getPartitioner() == null)
-                DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-            for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
-                if(!ksm.getName().equals("system")) {
-                    for (TableMetadata tm : ksm.getTables()) {
-                        CassandraUtils.tableFromCQL(new ByteArrayInputStream(tm.asCQLQuery().getBytes()), tm.getId());
-                    }
+        Cluster cluster = builder.build();
+        Metadata metadata = cluster.getMetadata();
+        IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+        for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
+            if (!ksm.getName().equals("system")) {
+                for (TableMetadata tm : ksm.getTables()) {
+                    CassandraUtils.tableFromCQL(new ByteArrayInputStream(tm.asCQLQuery().getBytes()), tm.getId());
                 }
             }
         }
+        return cluster;
     }
 
     public static CFMetaData tableFromCQL(InputStream source) throws IOException {
