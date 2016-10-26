@@ -4,12 +4,14 @@ import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.security.EncryptionContext;
 import org.apache.commons.cli.HelpFormatter;
 
 import java.io.File;
@@ -35,11 +37,13 @@ public class CommitlogTool extends MutationTool {
             Config conf = (Config) CassandraUtils.readPrivate(DatabaseDescriptor.class, "conf");
             conf.max_mutation_size_in_kb = conf.commitlog_segment_size_in_mb * 1024 * 1024 / 2;
             conf.commitlog_sync = Config.CommitLogSync.batch;
+            conf.commitlog_total_space_in_mb = 32;
             conf.commitlog_sync_batch_window_in_ms = Double.MAX_VALUE;
             conf.commitlog_directory = System.getProperty("java.io.tmpdir");
             conf.hints_directory = System.getProperty("java.io.tmpdir");
             conf.saved_caches_directory = System.getProperty("java.io.tmpdir");
             conf.data_file_directories = new String[] {System.getProperty("java.io.tmpdir")};
+            DatabaseDescriptor.setEncryptionContext(new EncryptionContext(new TransparentDataEncryptionOptions()));
         } catch (NoSuchFieldException e) {
             e.printStackTrace();
             System.exit(33);
