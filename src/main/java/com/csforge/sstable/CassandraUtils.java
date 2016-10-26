@@ -50,6 +50,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -115,7 +116,28 @@ public class CassandraUtils {
         return in;
     }
 
-    public static Cluster loadTablesFromRemote(String host, int port) throws IOException {
+    public static Map<String, UUID> parseOverrides(String s) {
+        final Properties properties = new Properties();
+        try {
+            properties.load(new StringReader(s.replace(',', '\n')));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return properties.entrySet().stream()
+                .collect(Collectors.toMap(
+                        (Map.Entry entry) -> entry.getKey().toString(),
+                        (Map.Entry entry) -> {
+                            String uuid = entry.getValue().toString();
+                            if (uuid.indexOf('-') == -1) {
+                                return UUID.fromString(uuid.replaceAll("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5"));
+                            } else {
+                                return UUID.fromString(uuid);
+                            }
+                        }));
+    }
+
+    public static Cluster loadTablesFromRemote(String host, int port, String cfidOverrides) throws IOException {
+        Map<String, UUID> cfs = parseOverrides(cfidOverrides);
         Cluster.Builder builder = Cluster.builder().addContactPoints(host).withPort(port);
         Cluster cluster = builder.build();
         Metadata metadata = cluster.getMetadata();
@@ -125,7 +147,10 @@ public class CassandraUtils {
         for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
             if (!ksm.getName().equals("system")) {
                 for (TableMetadata tm : ksm.getTables()) {
-                    CassandraUtils.tableFromCQL(new ByteArrayInputStream(tm.asCQLQuery().getBytes()), tm.getId());
+                    String name = ksm.getName()+"."+tm.getName();
+                    CassandraUtils.tableFromCQL(
+                            new ByteArrayInputStream(tm.asCQLQuery().getBytes()),
+                            cfs.get(name) != null ? cfs.get(name) : tm.getId());
                 }
             }
         }

@@ -83,6 +83,8 @@ public class CommitlogTool extends MutationTool {
             }
         };
         replayer.recover(target, true);
+        CommitLog.instance.stopUnsafe(false);
+
     }
 
     protected void printHelp() {

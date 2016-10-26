@@ -14,6 +14,7 @@ import static com.csforge.sstable.TableTransformer.*;
 public abstract class MutationTool {
     private static final String HOST_OPTION = "h";
     private static final String PORT_OPTION = "p";
+    private static final String CFID_OPTION = "i";
     private static final String REPLAY_OPTION = "r";
     private static final String SILENT_OPTION = "s";
     protected static final Options options = new Options();
@@ -26,6 +27,9 @@ public abstract class MutationTool {
         Option portOption = new Option(PORT_OPTION, true, "CQL native port.");
         portOption.setRequired(false);
         options.addOption(portOption);
+        Option cfidOption = new Option(CFID_OPTION, true, "Override cfids by table name.");
+        cfidOption.setRequired(false);
+        options.addOption(cfidOption);
         Option silentOption = new Option(SILENT_OPTION, false, "Only output mutations.");
         silentOption.setRequired(false);
         options.addOption(silentOption);
@@ -68,7 +72,8 @@ public abstract class MutationTool {
                     System.out.printf("%sLoading schema from %s:%s%s", ANSI_RED, host, port, ANSI_RESET);
                     System.out.flush();
                 }
-                cluster = CassandraUtils.loadTablesFromRemote(host, port);
+                String cfids = cmd.getOptionValue(CFID_OPTION, "");
+                cluster = CassandraUtils.loadTablesFromRemote(host, port, cfids);
             } finally {
                 System.out.print(ANSI_RESET);
             }

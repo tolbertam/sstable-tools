@@ -14,6 +14,7 @@
     <slf4j.version>1.7.13</slf4j.version>
     <jackson.version>2.6.4</jackson.version>
     <jline.version>2.13</jline.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <dependencies>
     <dependency>
