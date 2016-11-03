@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -148,9 +149,14 @@ public class CassandraUtils {
             if (!ksm.getName().equals("system")) {
                 for (TableMetadata tm : ksm.getTables()) {
                     String name = ksm.getName()+"."+tm.getName();
-                    CassandraUtils.tableFromCQL(
-                            new ByteArrayInputStream(tm.asCQLQuery().getBytes()),
-                            cfs.get(name) != null ? cfs.get(name) : tm.getId());
+                    try {
+                        CassandraUtils.tableFromCQL(
+                                new ByteArrayInputStream(tm.asCQLQuery().getBytes()),
+                                cfs.get(name) != null ? cfs.get(name) : tm.getId());
+                    } catch(SyntaxException e) {
+                        // ignore tables that we cant parse (probably dse)
+                        logger.debug("Ignoring table " + name + " due to syntax exception " + e.getMessage());
+                    }
                 }
             }
         }
@@ -163,6 +169,7 @@ public class CassandraUtils {
 
     public static CFMetaData tableFromCQL(InputStream source, UUID cfid) throws IOException {
         String schema = CharStreams.toString(new InputStreamReader(source, "UTF-8"));
+        logger.trace("Loading Schema" + schema);
         CFStatement statement = (CFStatement) QueryProcessor.parseStatement(schema);
         String keyspace = "";
         try {

@@ -56,7 +56,6 @@ public class CommitlogTool extends MutationTool {
     public CommitlogTool(String... args) {
         super(args);
     }
-
     protected void walkMutations(File target, PrintStream out, MutationReplayer mutationReplayer) throws Exception {
         Class replayFilterClass = Class.forName("org.apache.cassandra.db.commitlog.CommitLogReplayer$ReplayFilter");
         // make filter
