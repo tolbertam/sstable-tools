@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -50,6 +51,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -115,22 +117,50 @@ public class CassandraUtils {
         return in;
     }
 
-    public static void loadTablesFromRemote(String host, int port) throws IOException {
-        Cluster.Builder builder = Cluster.builder().addContactPoints(host).withPort(port);
+    public static Map<String, UUID> parseOverrides(String s) {
+        final Properties properties = new Properties();
+        try {
+            properties.load(new StringReader(s.replace(',', '\n')));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return properties.entrySet().stream()
+                .collect(Collectors.toMap(
+                        (Map.Entry entry) -> entry.getKey().toString(),
+                        (Map.Entry entry) -> {
+                            String uuid = entry.getValue().toString();
+                            if (uuid.indexOf('-') == -1) {
+                                return UUID.fromString(uuid.replaceAll("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5"));
+                            } else {
+                                return UUID.fromString(uuid);
+                            }
+                        }));
+    }
 
-        try (Cluster cluster = builder.build(); Session session = cluster.connect()) {
-            Metadata metadata = cluster.getMetadata();
-            IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
-            if (DatabaseDescriptor.getPartitioner() == null)
-                DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-            for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
-                if(!ksm.getName().equals("system")) {
-                    for (TableMetadata tm : ksm.getTables()) {
-                        CassandraUtils.tableFromCQL(new ByteArrayInputStream(tm.asCQLQuery().getBytes()), tm.getId());
+    public static Cluster loadTablesFromRemote(String host, int port, String cfidOverrides) throws IOException {
+        Map<String, UUID> cfs = parseOverrides(cfidOverrides);
+        Cluster.Builder builder = Cluster.builder().addContactPoints(host).withPort(port);
+        Cluster cluster = builder.build();
+        Metadata metadata = cluster.getMetadata();
+        IPartitioner partitioner = FBUtilities.newPartitioner(metadata.getPartitioner());
+        if (DatabaseDescriptor.getPartitioner() == null)
+            DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+        for (com.datastax.driver.core.KeyspaceMetadata ksm : metadata.getKeyspaces()) {
+            if (!ksm.getName().equals("system")) {
+                for (TableMetadata tm : ksm.getTables()) {
+                    String name = ksm.getName()+"."+tm.getName();
+                    try {
+                        CassandraUtils.tableFromCQL(
+                                new ByteArrayInputStream(tm.asCQLQuery().getBytes()),
+                                cfs.get(name) != null ? cfs.get(name) : tm.getId());
+                    } catch(SyntaxException e) {
+                        // ignore tables that we cant parse (probably dse)
+                        logger.debug("Ignoring table " + name + " due to syntax exception " + e.getMessage());
                     }
                 }
             }
         }
+        return cluster;
     }
 
     public static CFMetaData tableFromCQL(InputStream source) throws IOException {
@@ -139,6 +169,7 @@ public class CassandraUtils {
 
     public static CFMetaData tableFromCQL(InputStream source, UUID cfid) throws IOException {
         String schema = CharStreams.toString(new InputStreamReader(source, "UTF-8"));
+        logger.trace("Loading Schema" + schema);
         CFStatement statement = (CFStatement) QueryProcessor.parseStatement(schema);
         String keyspace = "";
         try {
@@ -164,6 +195,12 @@ public class CassandraUtils {
             cfm = ((CreateTableStatement) statement.prepare().statement).getCFMetaData();
         }
         return cfm;
+    }
+
+    public static Object readPrivate(Class clz, String name) throws NoSuchFieldException, IllegalAccessException {
+        Field type = clz.getDeclaredField(name);
+        type.setAccessible(true);
+        return type.get(null);
     }
 
     public static Object readPrivate(Object obj, String name) throws NoSuchFieldException, IllegalAccessException {

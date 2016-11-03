@@ -38,6 +38,11 @@ public class Driver {
             case "hints":
                 HintsTool.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
+
+            case "commitlog":
+                CommitlogTool.main(Arrays.copyOfRange(args, 1, args.length));
+                break;
+
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();
@@ -47,6 +52,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: cqlsh, describe, hints");
+        System.err.println("Available commands: cqlsh, describe, hints, commitlog");
     }
 }
