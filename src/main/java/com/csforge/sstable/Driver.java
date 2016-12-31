@@ -39,10 +39,6 @@ public class Driver {
                 HintsTool.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
 
-            case "commitlog":
-                CommitlogTool.main(Arrays.copyOfRange(args, 1, args.length));
-                break;
-
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();

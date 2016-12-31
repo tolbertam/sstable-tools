@@ -3,10 +3,10 @@
   <groupId>com.csforge</groupId>
   <artifactId>sstable-tools</artifactId>
   <packaging>jar</packaging>
-  <version>3.7.0-alpha7-SNAPSHOT</version>
+  <version>3.9.0-alpha9-SNAPSHOT</version>
   <name>SSTable Tools</name>
   <properties>
-    <cassandra.version>3.7</cassandra.version>
+    <cassandra.version>3.9</cassandra.version>
     <driver.version>3.0.0</driver.version>
     <powermock.version>1.6.4</powermock.version>
     <junit.version>4.6</junit.version>

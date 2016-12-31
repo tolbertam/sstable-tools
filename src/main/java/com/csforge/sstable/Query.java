@@ -1,5 +1,6 @@
 package com.csforge.sstable;
 
+import com.github.fge.grappa.support.Var;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.cassandra.config.CFMetaData;
@@ -67,7 +68,7 @@ public class Query {
 
         Selection selection = statement.selectClause.isEmpty()
                 ? Selection.wildcard(cfm)
-                : Selection.fromSelectors(cfm, statement.selectClause);
+                : Selection.fromSelectors(cfm, statement.selectClause, VariableSpecifications.empty());
 
         // yes its unfortunate, im sorry
         StatementType type = mock(StatementType.class);
@@ -199,7 +200,7 @@ public class Query {
     public ResultSetData getResults(int pageSize, PagingData pagingData) throws IOException {
         Preconditions.checkNotNull(pagingData);
         int now = FBUtilities.nowInSeconds();
-        Selection.ResultSetBuilder result = selection.resultSetBuilder(statement.parameters.isJson);
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(OPTIONS, statement.parameters.isJson);
         try (UnfilteredPartitionIterator scanner = getScanner(pageSize, pagingData)) {
             PartitionIterator partitions = UnfilteredPartitionIterators.filter(scanner, now);
             AtomicInteger rowsPaged = new AtomicInteger(0);
@@ -228,7 +229,7 @@ public class Query {
             }
 
             PagingData newPagingData = new PagingData(newPartitionKey, newClustering, rowsThusFar);
-            return new ResultSetData(result.build(OPTIONS.getProtocolVersion()), newPagingData);
+            return new ResultSetData(result.build(), newPagingData);
         }
     }
 
@@ -241,7 +242,7 @@ public class Query {
         Row staticRow = partition.staticRow();
         if (!partition.hasNext()) {
             if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable()) && !restrictions.hasClusteringColumnsRestriction()) {
-                result.newRow(protocolVersion);
+                result.newRow();
             }
             for (ColumnDefinition def : selection.getColumns()) {
                 switch (def.kind) {
@@ -260,7 +261,7 @@ public class Query {
 
         while (remaining-- > 0 && partition.hasNext()) {
             Row row = partition.next();
-            result.newRow(protocolVersion);
+            result.newRow();
             // Respect selection order
             for (ColumnDefinition def : selection.getColumns()) {
                 switch (def.kind) {
