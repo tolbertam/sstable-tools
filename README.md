@@ -11,9 +11,17 @@ Pre compiled binary available from bintray:
 **Note:** This tool formerly included a `tojson` command which dumped SSTable contents to JSON.  This functionality has
 since been merged into Cassandra starting with versions 3.0.4 and 3.4 as the `sstabledump` command.
 
+**Features:**
+
+* [cqlsh](#cqlsh) - Drop into an interactive shell to make queries against SSTables.
+* [describe](#describe) - Describe SSTable data and metadata. [CASSANDRA-11483](https://issues.apache.org/jira/browse/CASSANDRA-11483)
+* [hints](#hints) - Dump hints from a hint file
+* [compact](#compact) - offline compaction
+
 Example usage:
 
     java -jar sstable-tools.jar cqlsh
+    java -jar sstable-tools.jar compact ma-2-big-Data.db ma-3-big-Data.db /path/to/tabledir
     java -jar sstable-tools.jar hints 1458779867606-1.hints
     java -jar sstable-tools.jar describe ma-2-big-Data.db
 
@@ -109,11 +117,6 @@ Example shell usage:
 
 **Note:** No environment configuration is necessary for this tool to work if all components of the sstable are available but the cql create statement allows for more details.
 
-**Features:**
-
-* [cqlsh](#cqlsh) - Drop into an interactive shell to make queries against SSTables.
-* [describe](#describe) - Describe SSTable data and metadata.
-* [hints](#hints) - Dump hints from a hint file
 
 ## Building
 
@@ -326,5 +329,25 @@ Options:
   -p <arg> CQL native port.
   -s       Only output mutations.
   hintfile at least one file containing hints
+
+```
+
+## compact
+
+Merge multiple sstables into a single sstable. Arguments can either be sstables or a directory holding multiple sstables.
+
+Example Output:
+
+```
+java -jar sstable-tools.jar compact /Users/clohfink/node1table/mc-15-big-Data.db /Users/clohfink/node2table
+Merging 4 sstables to /Users/clohfink/git/sstable-tools/mc-0-big-Data.db
+```
+
+### Usage
+
+```
+java -jar sstable-tools.jar compact
+
+Usage: compact sstable [sstable ...]
 
 ```
