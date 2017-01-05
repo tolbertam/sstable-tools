@@ -1,6 +1,6 @@
 # SSTable Tools
 
-[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools)[ ![Github Releases (by Release)](https://img.shields.io/github/downloads/tolbertam/sstable-tools/v3.9.0-alpha9/total.svg)](https://github.com/tolbertam/sstable-tools/releases/tag/v3.9.0-alpha9)
+[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools) [![Github Releases (by Release)](https://img.shields.io/github/downloads/tolbertam/sstable-tools/v3.9.0-alpha9/total.svg)](https://github.com/tolbertam/sstable-tools/releases/tag/v3.9.0-alpha9)
 
 A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under development and not yet stable. Mainly a proof of concept playground for wish items.
 
