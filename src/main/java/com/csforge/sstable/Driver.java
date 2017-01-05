@@ -52,6 +52,6 @@ public class Driver {
     }
 
     private static void printCommands() {
-        System.err.println("Available commands: cqlsh, describe, hints, commitlog");
+        System.err.println("Available commands: cqlsh, describe, hints, compact");
     }
 }
