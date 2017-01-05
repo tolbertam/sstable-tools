@@ -4,9 +4,9 @@
 
 A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under development and not yet stable. Mainly a proof of concept playground for wish items.
 
-Pre compiled binary available from bintray:
+Pre compiled binary available:
 
-* [sstable-tools-3.0.7-alpha6.jar](https://bintray.com/tolbertam/sstable-tools/download_file?file_path=sstable-tools-3.7.0-alpha6.jar) -  Supports 3.0 to 3.7 (ma and mb sstable formats)
+* [sstable-tools-3.9.0-alpha9.jar](https://github.com/tolbertam/sstable-tools/releases/download/v3.9.0-alpha9/sstable-tools-3.9.0-alpha9.jar) -  Supports 3.0 to 3.9 (ma, mb and mc sstable formats)
 
 **Note:** This tool formerly included a `tojson` command which dumped SSTable contents to JSON.  This functionality has
 since been merged into Cassandra starting with versions 3.0.4 and 3.4 as the `sstabledump` command.
