@@ -9,6 +9,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.MinMaxPriorityQueue;
+import com.google.common.collect.Sets;
 import com.google.common.io.CharStreams;
 import jline.console.ConsoleReader;
 import org.apache.cassandra.config.CFMetaData;
@@ -48,6 +49,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -508,5 +511,36 @@ public class CassandraUtils {
                 out.printf("%sRegularColumns%s:%s {%s}%n", c, s, r, FBUtilities.toString(regulars));
             }
         }
+    }
+
+    public static Collection<File> sstablesFromPath(String path) {
+        Set<File> sstables = Sets.newHashSet();
+        File sstable = new File(path);
+        if (sstable.exists() && sstable.isFile()) {
+            sstables.add(sstable);
+        } else {
+            try {
+                if (sstable.exists()) {
+                    PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:**/*-Data.db");
+                    Files.walkFileTree(Paths.get(path), Sets.newHashSet(FileVisitOption.FOLLOW_LINKS), 2, new SimpleFileVisitor<Path>() {
+                        public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
+                            if (matcher.matches(path)) {
+                                sstables.add(path.toFile());
+                            }
+                            return FileVisitResult.CONTINUE;
+                        }
+
+                        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                            return FileVisitResult.CONTINUE;
+                        }
+                    });
+                } else {
+                    System.err.printf("Cannot find File %s%n", sstable.getAbsolutePath());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return sstables;
     }
 }

@@ -39,6 +39,10 @@ public class Driver {
                 HintsTool.main(Arrays.copyOfRange(args, 1, args.length));
                 break;
 
+            case "compact":
+                Compact.main(Arrays.copyOfRange(args, 1, args.length));
+                break;
+
             default:
                 System.err.println("Unknown command: " + args[0]);
                 printCommands();
