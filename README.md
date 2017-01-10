@@ -29,18 +29,18 @@ Example shell usage:
 
     java -jar sstable-tools.jar cqlsh
 
-    ## Select one or more sstables (space delimited, or choose directory to include all)
+Select one or more sstables (space delimited, or choose directory to include all)
+
     cqlsh> use ma-2-big-Data.db;
     Using: /home/user/sstable-tools/ma-2-big-Data.db
 
-    ## Use predefined schema file.
-    ## Can view with 'schema'.
-    ## This is optional but without it the partition
-    ## key and clustering index names are unknown.
+Use predefined schema file. Can view with 'schema'. This is optional but without it the partition key and clustering index names are unknown.
+
     cqlsh> schema schema.cql
     Successfully imported schema from '/home/user/sstable-tools/schema.cql'.
 
-    ## Alternatively, use 'CREATE TABLE' statement to enter a schema.
+Alternatively, use 'CREATE TABLE' statement to enter a schema.
+
     cqlsh> CREATE TABLE users (
     ...        user_name varchar PRIMARY KEY,
     ...        password varchar,
@@ -49,7 +49,8 @@ Example shell usage:
     ...        birth_year bigint
     ...    );
 
-    ## Discover the data in sstable(s) using CQL queries
+Discover the data in sstable(s) using CQL queries
+
     cqlsh> SELECT * FROM sstable WHERE age > 1 LIMIT 1
 
      ┌────────────┬─────────────┬─────────┬───────────┬────────┐
@@ -58,13 +59,14 @@ Example shell usage:
      │frodo       │1985         │male     │pass@      │CA      │
      └────────────┴─────────────┴─────────┴───────────┴────────┘
 
-    ## Display raw sstable data (useful to see tombstones and expired ttls)
-    ## with optional where clause
+Display raw sstable data (useful to see tombstones and expired ttls) with optional where clause
+
     cqlsh> DUMP WHERE age > 1 LIMIT 1
 
     [frodo] Row[info=[ts=1455937221199050] ]:  | [birth_year=1985 ts=1455937221199050], [gender=male ts=1455937221199050], [password=pass@ ts=1455937221199050], [state=CA ts=1455937221199050]
 
-    ## Describe the sstable data and metadata
+Describe the sstable data and metadata
+
     cqlsh> describe sstables;
 
     /Users/clohfink/git/sstable-tools/./src/test/resources/ma-2-big-Data.db
@@ -90,7 +92,8 @@ Example shell usage:
     TTL min: 0 (0 milliseconds)
     ...[snip]...
 
-    ## Paging is enabled by default and can be manipulated by using 'PAGING'
+Paging is enabled by default and can be manipulated by using 'PAGING'
+
     cqlsh> PAGING 20;
     Now Query paging is enabled
     Page size: 20
@@ -100,9 +103,8 @@ Example shell usage:
     Now Query paging is enabled
     Page size: 20
 
-    ## Used sstables, schema, and paging settings and persisted for future use.
-    ## Use the 'PERSIST' command to view preferences and to enable/disable
-    ## persistence.
+Used sstables, schema, and paging settings and persisted for future use. Use the 'PERSIST' command to view preferences and to enable/disable persistence.
+
     cqlsh> PERSIST;
     Preferences are currently enabled:
     pagingEnabled=true
