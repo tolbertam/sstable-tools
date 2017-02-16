@@ -83,7 +83,7 @@ public class Compact {
 
     public static void main(String ... args) {
         if (args.length == 0) {
-            System.err.println("Usage: java -jar sstable-tools.jar sstable [sstable ...]");
+            System.err.println("Usage: java -jar sstable-tools.jar compact [sstable ...]");
         } else {
             new Compact(args).run();
         }
