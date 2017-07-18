@@ -381,6 +381,10 @@ public class CassandraUtils {
                         case ROW:
                             rowCount++;
                             Row row = (Row) unfiltered;
+                            if (!row.deletion().isLive()) {
+                                tombstoneCount++;
+                                ptombcount++;
+                            }
                             psize += row.dataSize();
                             pcount++;
                             for (Cell cell : row.cells()) {
