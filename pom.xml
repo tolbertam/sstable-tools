@@ -15,6 +15,8 @@
     <jackson.version>2.6.4</jackson.version>
     <jline.version>2.13</jline.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- don't deploy to maven central -->
+    <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
   <dependencies>
     <dependency>
@@ -96,6 +98,21 @@
     </dependency>
   </dependencies>
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <artifactId>maven-release-plugin</artifactId>
+          <version>2.5.3</version>
+          <configuration>
+            <tagNameFormat>v@{project.version}</tagNameFormat>
+            <autoVersionSubmodules>true</autoVersionSubmodules>
+            <useReleaseProfile>false</useReleaseProfile>
+            <releaseProfiles>release</releaseProfiles>
+            <goals>deploy</goals>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -164,4 +181,82 @@
     <url>https://github.com/tolbertam/sstable-tools</url>
     <tag>HEAD</tag>
   </scm>
+
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-source-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-sources</id>
+                <goals>
+                  <goal>jar-no-fork</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-javadoc-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>attach-javadocs</id>
+                <goals>
+                  <goal>jar</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>de.jutzig</groupId>
+            <artifactId>github-release-plugin</artifactId>
+            <version>1.2.0</version>
+            <configuration>
+              <!-- note: this requires the following in ~/.m2/settings.xml to work:
+              <server>
+                <id>github</id>
+                <username>yourusername</username>
+                <password>yourpassword</password>
+              </server> -->
+              <prerelease>false</prerelease>
+              <draft>true</draft>
+              <repositoryId>tolbertam/sstable-tools</repositoryId>
+              <tag>${project.version}</tag>
+              <fileSets>
+                <fileSet>
+                  <directory>${project.build.directory}</directory>
+                  <includes>
+                    <include>sstable-tools-${project.version}.jar</include>
+                  </includes>
+                </fileSet>
+              </fileSets>
+            </configuration>
+            <executions>
+              <execution>
+                <id>release-at-deploy</id>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>release</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
