@@ -1,24 +1,23 @@
 package com.csforge.sstable;
 
 import com.google.common.base.Strings;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.hints.HintsTool;
-
 import java.io.File;
 import java.util.Arrays;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.hints.HintsTool;
 
 public class Driver {
 
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
     }
 
-    public static void main(String ... args) {
+    public static void main(String... args) {
         if (args.length == 0) {
             printCommands();
             System.exit(-1);
         }
-        switch(args[0].toLowerCase()) {
+        switch (args[0].toLowerCase()) {
             case "cqlsh":
                 Cqlsh.main(Arrays.copyOfRange(args, 1, args.length));
                 break;

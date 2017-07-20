@@ -2,7 +2,6 @@ package com.csforge.sstable;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Metadata;
-import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TableMetadata;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -13,7 +12,6 @@ import com.google.common.collect.Sets;
 import com.google.common.io.CharStreams;
 import jline.console.ConsoleReader;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -22,7 +20,6 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.*;
@@ -37,7 +34,6 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.schema.*;
-import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
@@ -72,7 +68,7 @@ public class CassandraUtils {
     private static String EMPTY_BAR = Strings.repeat("░", 30);
 
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
 
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)

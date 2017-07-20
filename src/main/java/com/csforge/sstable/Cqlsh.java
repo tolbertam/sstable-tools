@@ -14,6 +14,7 @@ import jline.console.UserInterruptException;
 import jline.console.completer.*;
 import jline.console.history.FileHistory;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.CreateTypeStatement;
@@ -121,6 +122,7 @@ public class Cqlsh {
                 System.err.println("Failed to create preferences directory: " + CONFIG_DIR);
             }
         }
+        DatabaseDescriptor.clientInitialization(false);
     }
 
     static String errorMsg(String msg) {
