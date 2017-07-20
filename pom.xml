@@ -226,7 +226,7 @@
             <artifactId>github-release-plugin</artifactId>
             <version>1.2.0</version>
             <configuration>
-              <!-- note: this requires the following in ~/.m2/settings.xml to work:
+              <!-- note: this requires the following under <servers> in ~/.m2/settings.xml to work:
               <server>
                 <id>github</id>
                 <username>yourusername</username>
