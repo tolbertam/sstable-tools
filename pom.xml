@@ -235,7 +235,7 @@
               <prerelease>false</prerelease>
               <draft>true</draft>
               <repositoryId>tolbertam/sstable-tools</repositoryId>
-              <tag>${project.version}</tag>
+              <tag>v${project.version}</tag>
               <fileSets>
                 <fileSet>
                   <directory>${project.build.directory}</directory>
