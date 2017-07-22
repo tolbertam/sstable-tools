@@ -2,7 +2,7 @@ package com.csforge.sstable;
 
 import com.datastax.driver.core.Cluster;
 import com.google.common.base.Strings;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.cli.*;
 import org.mockito.internal.util.io.IOUtil;
 
@@ -20,7 +20,7 @@ public abstract class MutationTool {
     protected static final Options options = new Options();
 
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
         Option hostOption = new Option(HOST_OPTION, true, "Host to extract schema from.");
         hostOption.setRequired(false);
         options.addOption(hostOption);

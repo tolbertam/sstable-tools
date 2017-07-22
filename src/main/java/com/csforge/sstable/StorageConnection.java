@@ -88,12 +88,10 @@ public class StorageConnection {
             targetVersion = 10;
             try {
                 SocketChannel channel = SocketChannel.open();
-                if (!Config.getOutboundBindAny())
-                    channel.bind(new InetSocketAddress(FBUtilities.getLocalAddress(), 0));
                 channel.connect(new InetSocketAddress(host, DatabaseDescriptor.getStoragePort()));
                 socket = channel.socket();
                 socket.setTcpNoDelay(true);
-                if (DatabaseDescriptor.getInternodeSendBufferSize() != null) {
+                if (DatabaseDescriptor.getInternodeSendBufferSize() != 0) {
                     try {
                         socket.setSendBufferSize(DatabaseDescriptor.getInternodeSendBufferSize());
                     } catch (SocketException se) {

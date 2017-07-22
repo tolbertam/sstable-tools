@@ -24,7 +24,7 @@ public class TableTransformer {
     public static final String ANSI_CYAN = "\u001B[36m";
     public static final String ANSI_WHITE = "\u001B[37m";
 
-    private static String colValue(ResultSet results, List<ByteBuffer> row, int i) throws Exception {
+    public static String colValue(ResultSet results, List<ByteBuffer> row, int i) throws Exception {
         ByteBuffer v = row.get(i).duplicate();
         String ret = "null";
         if (v != null) {

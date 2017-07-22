@@ -4,6 +4,7 @@ import com.google.common.collect.Sets;
 import javassist.runtime.Desc;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 
 public class Compact {
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
     }
 
     protected Collection<SSTableReader> sstables = Sets.newHashSet();

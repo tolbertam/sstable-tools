@@ -31,6 +31,15 @@ public class Utils {
     public static String CQL3 = "CREATE TABLE IF NOT EXISTS test.wide ( key text, key2 text, val text, PRIMARY KEY (key, key2));";
     public static String CQL4 = "CREATE TABLE collections (key1 varchar, listval list<text>, mapval map<text, text>, setval set<text>, PRIMARY KEY (key1))";
 
+    public static String CQL5 =
+            "CREATE TABLE temperature_by_day(\n" +
+                    "        weatherstation_id text\n," +
+                    "        date text\n," +
+                    "        event_time timestamp,\n" +
+                    "        temperature float,\n" +
+                    "        PRIMARY KEY ((weatherstation_id,date),event_time)\n" +
+                    ");";
+
     private static File copyResource(String name) throws Exception {
         InputStream is = URLClassLoader.getSystemResourceAsStream(name);
         String tempDir = System.getProperty("java.io.tmpdir");

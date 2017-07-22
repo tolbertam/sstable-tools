@@ -3,7 +3,7 @@ sudo: false
 jdk:
   - oraclejdk8
 env:
-  - CASSANDRA_VERSION=3.9
+  - CASSANDRA_VERSION=3.11.0
 install: mvn install -DskipTests=true -Dcassandra.version=$CASSANDRA_VERSION
 script: mvn test -Dcassandra.version=$CASSANDRA_VERSION
 cache:

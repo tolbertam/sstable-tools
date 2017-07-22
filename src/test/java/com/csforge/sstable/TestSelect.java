@@ -1,8 +1,10 @@
 package com.csforge.sstable;
 
+import java.nio.ByteBuffer;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -19,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TestSelect {
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
 
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
@@ -89,6 +91,23 @@ public class TestSelect {
         ResultSet result = q.getResults().getResultSet();
         Assert.assertEquals(1, result.rows.size());
         Assert.assertEquals("count", result.metadata.names.get(0).name.toString());
+        TableTransformer.dumpResults(cfdata, result, System.out);
+    }
+
+    @Test
+    public void testSelectGroupBy() throws Exception {
+        File path = Utils.getSSTable("mc", 1);
+        String query = String.format("SELECT weatherstation_id, date, AVG(temperature) AS avg FROM \"%s\" GROUP BY weatherstation_id, date", path);
+        CFMetaData cfdata = CassandraUtils.tableFromCQL(new ByteArrayInputStream(Utils.CQL5.getBytes()));
+        Query q = new Query(query, Collections.singleton(path), cfdata);
+        ResultSet result = q.getResults().getResultSet();
+        Assert.assertEquals(2, result.rows.size());
+
+        Assert.assertEquals("2016-04-03", TableTransformer.colValue(result, result.rows.get(0), 1));
+        Assert.assertEquals("71.5", TableTransformer.colValue(result, result.rows.get(0), 2));
+        Assert.assertEquals("2016-04-04", TableTransformer.colValue(result, result.rows.get(1), 1));
+        Assert.assertEquals("73.5", TableTransformer.colValue(result, result.rows.get(1), 2));
+        TableTransformer.dumpResults(cfdata, result, System.out);
     }
 
     @Test

@@ -1,8 +1,8 @@
 package com.csforge.sstable;
 
-import com.github.fge.grappa.support.Var;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import java.lang.reflect.Method;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -14,6 +14,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -27,6 +28,8 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +55,11 @@ public class Query {
     public final CFMetaData cfm;
     public final Selection selection;
     public final ColumnFilter queriedColumns;
+    public AggregationSpecification aggregationSpec;
     public final Collection<File> path;
+
+    private static final SSTableReadsListener emptyReadListener = new SSTableReadsListener() {
+    };
 
     public Query(String query, Collection<File> path, CFMetaData cfm) throws IllegalAccessException, NoSuchFieldException, IOException {
         SelectStatement.RawStatement statement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(query);
@@ -68,7 +75,7 @@ public class Query {
 
         Selection selection = statement.selectClause.isEmpty()
                 ? Selection.wildcard(cfm)
-                : Selection.fromSelectors(cfm, statement.selectClause, VariableSpecifications.empty());
+                : Selection.fromSelectors(cfm, statement.selectClause, VariableSpecifications.empty(), !statement.parameters.groups.isEmpty());
 
         // yes its unfortunate, im sorry
         StatementType type = mock(StatementType.class);
@@ -99,6 +106,16 @@ public class Query {
             filter = builder.build();
         }
         this.queriedColumns = filter;
+
+        try {
+            // Make getAggregationSpecification public and invoke it..
+            Method getAggregationSpecification = SelectStatement.RawStatement.class.getDeclaredMethod("getAggregationSpecification", CFMetaData.class, Selection.class, StatementRestrictions.class, boolean.class);
+            getAggregationSpecification.setAccessible(true);
+            this.aggregationSpec = (AggregationSpecification) getAggregationSpecification.invoke(statement, cfm, selection, restrictions, statement.parameters.isDistinct);
+        } catch (Exception e) {
+            logger.error("Unable to get aggregationSpecification", e);
+            this.aggregationSpec = null;
+        }
     }
 
     private ClusteringIndexFilter makeClusteringIndexFilter()
@@ -171,7 +188,9 @@ public class Query {
             readers.add(SSTableReader.openNoValidation(desc, cfm));
         }
         int now = FBUtilities.nowInSeconds();
-        List<UnfilteredPartitionIterator> all = readers.stream().map(r -> r.getScanner(queriedColumns, pageRange, false)).collect(Collectors.toList());
+        List<UnfilteredPartitionIterator> all = readers.stream()
+                .map(r -> r.getScanner(queriedColumns, pageRange, false, emptyReadListener))
+                .collect(Collectors.toList());
         UnfilteredPartitionIterator ret = UnfilteredPartitionIterators.mergeLazily(all, now);
         ret = restrictions.getRowFilter(null, OPTIONS).filter(ret, now);
         if (statement.limit != null && !selection.isAggregate()) {
@@ -200,7 +219,8 @@ public class Query {
     public ResultSetData getResults(int pageSize, PagingData pagingData) throws IOException {
         Preconditions.checkNotNull(pagingData);
         int now = FBUtilities.nowInSeconds();
-        Selection.ResultSetBuilder result = selection.resultSetBuilder(OPTIONS, statement.parameters.isJson);
+
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(OPTIONS, statement.parameters.isJson, aggregationSpec);
         try (UnfilteredPartitionIterator scanner = getScanner(pageSize, pagingData)) {
             PartitionIterator partitions = UnfilteredPartitionIterators.filter(scanner, now);
             AtomicInteger rowsPaged = new AtomicInteger(0);
@@ -235,14 +255,14 @@ public class Query {
 
     Clustering processPartition(RowIterator partition, QueryOptions options, Selection.ResultSetBuilder result, int nowInSec, int remaining, AtomicInteger rowsPaged)
             throws InvalidRequestException {
-        int protocolVersion = options.getProtocolVersion();
+        ProtocolVersion protocolVersion = options.getProtocolVersion();
 
         ByteBuffer[] keyComponents = SelectStatement.getComponents(cfm, partition.partitionKey());
 
         Row staticRow = partition.staticRow();
         if (!partition.hasNext()) {
-            if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable()) && !restrictions.hasClusteringColumnsRestriction()) {
-                result.newRow();
+            if (!staticRow.isEmpty() && (!restrictions.usesSecondaryIndexing() || cfm.isStaticCompactTable()) && !restrictions.hasClusteringColumnsRestrictions()) {
+                result.newRow(partition.partitionKey(), staticRow.clustering());
             }
             for (ColumnDefinition def : selection.getColumns()) {
                 switch (def.kind) {
@@ -253,7 +273,7 @@ public class Query {
                         addValue(result, def, staticRow, nowInSec, protocolVersion);
                         break;
                     default:
-                        result.add((ByteBuffer) null);
+                        result.add(null);
                 }
             }
             return null;
@@ -261,7 +281,7 @@ public class Query {
 
         while (remaining-- > 0 && partition.hasNext()) {
             Row row = partition.next();
-            result.newRow();
+            result.newRow(partition.partitionKey(), row.clustering());
             // Respect selection order
             for (ColumnDefinition def : selection.getColumns()) {
                 switch (def.kind) {
@@ -287,13 +307,13 @@ public class Query {
         return null;
     }
 
-    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, int protocolVersion) {
+    private static void addValue(Selection.ResultSetBuilder result, ColumnDefinition def, Row row, int nowInSec, ProtocolVersion protocolVersion) {
         if (def.isComplex()) {
             // Collections are the only complex types we have so far
             assert def.type.isCollection() && def.type.isMultiCell();
             ComplexColumnData complexData = row.getComplexColumnData(def);
             if (complexData == null)
-                result.add((ByteBuffer) null);
+                result.add(null);
             else
                 result.add(((CollectionType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
         } else {

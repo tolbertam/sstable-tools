@@ -1,9 +1,7 @@
 package com.csforge.sstable;
 
-
 import junit.framework.Assert;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.junit.Test;
@@ -13,7 +11,7 @@ import java.io.File;
 
 public class TestCUtils {
     static {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
 
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
