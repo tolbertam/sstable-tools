@@ -57,7 +57,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -320,11 +319,11 @@ public class CassandraUtils {
 
     private static Options options = new Options();
 
-    private static String GC_GRACE_SECONDS_OPTION = "g";
+    private static String GCGS_KEY = "--gc_grace_seconds";
 
     static {
-        Option gcGraceOption = new Option(GC_GRACE_SECONDS_OPTION, "gc_grace_seconds", true,
-                "gc_grace_seconds value to use in estimated droppable tombstones calculation.");
+        Option gcGraceOption = new Option(null, GCGS_KEY, true,
+                "The " + GCGS_KEY + " to use when calculating droppable tombstones");
         gcGraceOption.setRequired(false);
 
         Option helpOption = new Option("h", "help", false, "Displays this help message.");
@@ -361,7 +360,7 @@ public class CassandraUtils {
             printDescribeHelpAndExit();
         }
 
-        String gcGraceStr = cmd.getOptionValue(GC_GRACE_SECONDS_OPTION);
+        String gcGraceStr = cmd.getOptionValue(GCGS_KEY);
         final int gcGraceSeconds = gcGraceStr != null ? Integer.parseInt(gcGraceStr) : 0;
 
         boolean color = console == null || console.getTerminal().isAnsiSupported();
