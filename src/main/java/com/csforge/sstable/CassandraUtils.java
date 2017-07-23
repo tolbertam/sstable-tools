@@ -319,7 +319,7 @@ public class CassandraUtils {
 
     private static Options options = new Options();
 
-    private static String GCGS_KEY = "--gc_grace_seconds";
+    private static String GCGS_KEY = "gc_grace_seconds";
 
     static {
         Option gcGraceOption = new Option(null, GCGS_KEY, true,
