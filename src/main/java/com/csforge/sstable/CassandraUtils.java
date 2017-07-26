@@ -35,6 +35,13 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormat;
 import org.slf4j.Logger;
@@ -50,7 +57,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -311,11 +317,52 @@ public class CassandraUtils {
 
     private static Comparator<ValuedByteBuffer> VCOMP = Comparator.comparingLong(ValuedByteBuffer::getValue).reversed();
 
-    public static void printStats(String fname, PrintStream out) throws IOException, NoSuchFieldException, IllegalAccessException {
-        printStats(fname, out, null);
+    private static Options options = new Options();
+
+    private static String GCGS_KEY = "gc_grace_seconds";
+
+    static {
+        Option gcGraceOption = new Option(null, GCGS_KEY, true,
+                "The " + GCGS_KEY + " to use when calculating droppable tombstones");
+        gcGraceOption.setRequired(false);
+
+        Option helpOption = new Option("h", "help", false, "Displays this help message.");
+        options.addOption(gcGraceOption);
+        options.addOption(helpOption);
     }
 
-    public static void printStats(String fname, PrintStream out, ConsoleReader console) throws IOException, NoSuchFieldException, IllegalAccessException {
+    private static void printDescribeHelpAndExit() {
+        try (PrintWriter errWriter = new PrintWriter(System.err, true)) {
+            HelpFormatter formatter = new HelpFormatter();
+            formatter.printHelp(errWriter, 120, "cqlsh describe",
+                    String.format("%nSSTable describe for Apache Cassandra 3.x%nOptions:"),
+                    options, 2, 1, "", true);
+        } finally {
+            System.exit(-1);
+        }
+    }
+
+    public static void printStats(String fname, PrintStream out, String... args) throws IOException, NoSuchFieldException, IllegalAccessException {
+        printStats(fname, out, null, args);
+    }
+
+    public static void printStats(String fname, PrintStream out, ConsoleReader console, String... args) throws IOException, NoSuchFieldException, IllegalAccessException {
+        CommandLineParser parser = new PosixParser();
+        CommandLine cmd = null;
+        try {
+            cmd = parser.parse(options, args);
+        } catch (ParseException e) {
+            System.err.format("%sFailure parsing arguments: %s%s%n%n", ANSI_RED, e.getMessage(), ANSI_RESET);
+            printDescribeHelpAndExit();
+        }
+
+        if (cmd.hasOption("h")) {
+            printDescribeHelpAndExit();
+        }
+
+        String gcGraceStr = cmd.getOptionValue(GCGS_KEY);
+        final int gcGraceSeconds = gcGraceStr != null ? Integer.parseInt(gcGraceStr) : 0;
+
         boolean color = console == null || console.getTerminal().isAnsiSupported();
         String c = color ? TableTransformer.ANSI_BLUE : "";
         String s = color ? TableTransformer.ANSI_CYAN : "";
@@ -459,7 +506,7 @@ public class CassandraUtils {
                     out.printf("%sminClustringValues%s:%s %s%n", c, s, r, Arrays.toString(minValues));
                     out.printf("%smaxClustringValues%s:%s %s%n", c, s, r, Arrays.toString(maxValues));
                 }
-                out.printf("%sEstimated droppable tombstones%s:%s %s%n", c, s, r, stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+                out.printf("%sEstimated droppable tombstones%s:%s %s%n", c, s, r, stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - gcGraceSeconds));
                 out.printf("%sSSTable Level%s:%s %d%n", c, s, r, stats.sstableLevel);
                 out.printf("%sRepaired at%s:%s %d %s%n", c, s, r, stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS, color));
                 out.printf("%sReplay positions covered%s:%s %s%n", c, s, r, stats.commitLogIntervals);
@@ -469,7 +516,10 @@ public class CassandraUtils {
 
                 TermHistogram estDropped = new TermHistogram(stats.estimatedTombstoneDropTime.getAsMap(),
                         "Drop Time",
-                        offset -> String.format("%d %s", offset, toDateString(offset, TimeUnit.SECONDS, color)),
+                        offset -> {
+                            long dropTime = offset + gcGraceSeconds;
+                            return String.format("%d %s", dropTime, toDateString(dropTime, TimeUnit.SECONDS, color));
+                        },
                         Object::toString);
                 estDropped.printHistogram(out, color, true);
                 out.printf("%sPartition Size%s:%s%n", c, s, r);
