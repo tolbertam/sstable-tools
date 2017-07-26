@@ -3,7 +3,7 @@
   <groupId>com.csforge</groupId>
   <artifactId>sstable-tools</artifactId>
   <packaging>jar</packaging>
-  <version>3.11.0-alpha11</version>
+  <version>3.11.0-alpha12-SNAPSHOT</version>
   <name>SSTable Tools</name>
   <properties>
     <cassandra.version>3.11.0</cassandra.version>
@@ -208,7 +208,7 @@
     <connection>scm:git:git@github.com:tolbertam/sstable-tools.git</connection>
     <developerConnection>scm:git:git@github.com:tolbertam/sstable-tools.git</developerConnection>
     <url>https://github.com/tolbertam/sstable-tools</url>
-    <tag>v3.11.0-alpha11</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <profiles>
