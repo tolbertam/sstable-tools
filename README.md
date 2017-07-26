@@ -1,12 +1,12 @@
 # SSTable Tools
 
-[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools) [![Github Releases (by Release)](https://img.shields.io/github/downloads/tolbertam/sstable-tools/v3.11.0-alpha10/total.svg)](https://github.com/tolbertam/sstable-tools/releases/tag/v3.11.0-alpha10)
+[![Build Status](https://travis-ci.org/tolbertam/sstable-tools.svg?branch=master)](https://travis-ci.org/tolbertam/sstable-tools) [![Github Releases (by Release)](https://img.shields.io/github/downloads/tolbertam/sstable-tools/v3.11.0-alpha11/total.svg)](https://github.com/tolbertam/sstable-tools/releases/tag/v3.11.0-alpha11)
 
 A toolkit for parsing, creating and doing other fun stuff with Cassandra 3.x SSTables. This project is under development and not yet stable. Mainly a proof of concept playground for wish items.
 
 Pre compiled binary available:
 
-* [sstable-tools-3.11.0-alpha10.jar](https://github.com/tolbertam/sstable-tools/releases/download/v3.11.0-alpha10/sstable-tools-3.11.0-alpha10.jar) -  Supports 3.0 to 3.11 (ma, mb and mc sstable formats)
+* [sstable-tools-3.11.0-alpha11.jar](https://github.com/tolbertam/sstable-tools/releases/download/v3.11.0-alpha11/sstable-tools-3.11.0-alpha11.jar) -  Supports 3.0 to 3.11 (ma, mb and mc sstable formats)
 
 **Note:** This tool formerly included a `tojson` command which dumped SSTable contents to JSON.  This functionality has
 since been merged into Cassandra starting with versions 3.0.4 and 3.4 as the `sstabledump` command.
